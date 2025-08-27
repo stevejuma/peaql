@@ -229,7 +229,7 @@ export class Table {
       columnTypes[key] = new AttributeColumn(key, Object);
     }
 
-    return new Table(name, columnTypes);
+    return new Table(name, columnTypes).data(records);
   }
 }
 

@@ -80,7 +80,7 @@ export type CompilerOptions = {
 
 const COMPILER_OPTIONS: CompilerOptions = Object.freeze({
   supportImplicitGroupBy: true,
-  defaultTableName: "postings",
+  defaultTableName: "peql",
 });
 
 export class Compiler {

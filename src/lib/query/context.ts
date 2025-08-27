@@ -28,7 +28,6 @@ export class Context {
     readonly errors: Error[] = [],
     ...tables: Table[]
   ) {
-    this.tables.set("", Table.create("").data([null]));
     tables.forEach((table) => {
       table.setContext(this);
       this.tables.set(table.name, table);
