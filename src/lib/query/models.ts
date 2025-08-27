@@ -15,7 +15,6 @@ import {
   NULL,
   Structure,
   structureFor,
-  typeFor,
   typeOf,
 } from "./types";
 import { CompilationError } from "../errors";
