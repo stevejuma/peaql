@@ -1,0 +1,643 @@
+@top Bql { 
+    (Option ";"?)* statement ";" ? eof
+}
+
+statement {
+    Statement Unions? | CreateTable | Insert
+}
+
+Option {
+    set
+    (Identifier | String | keyword )
+    "="
+    Sets {
+      Literal
+    }
+}
+
+@skip {
+    space | LineComment | BlockComment
+}
+
+@precedence {
+    max @left
+    uminus @right
+    times @left
+    div @right
+    plus @left
+    minus @left
+    not @right 
+    and @left 
+    or @left 
+}
+
+Statement {
+    With?
+    Select
+    From?
+    Joins?
+    Windows?
+    Where?
+    aggregates
+    Limit?
+}
+
+Unions {
+    Union {
+        Type {
+            (union | except | intersect) all?
+        }
+        Statement
+    }+
+}
+
+aggregates {
+    GroupBy?
+    OrderBy?
+    PivotBy?
+}
+
+With {
+    with 
+    WithExpr ("," WithExpr)* 
+}
+
+WithExpr {
+    Identifier  
+    as
+    "(" Statement Unions? ")"
+}
+
+Where {
+    where expr
+}
+
+GroupBy {
+    group by
+    Groups { expr ("," expr)* }
+    Having {
+        having
+        expr
+    }?
+}
+
+OrderBy {
+    order by
+    Order ("," Order)*
+}
+
+PivotBy {
+    pivot by
+    (Integer | Column ) ("," (Integer | Column))*
+}
+
+Limit {
+    limit
+    Integer
+}
+
+Order {
+    expr
+    Direction {
+      (
+          asc | desc
+      )
+    }?
+}
+
+Select {
+    select
+    (Distinct|all)?
+    targets
+}
+
+Distinct {
+    distinct
+}
+
+SubSelect {
+    "(" Statement Unions? ")" 
+    As?
+}
+
+As {
+    as?  Identifier
+}
+
+From {
+    from fromClause
+}
+
+Joins {
+    Join+
+}
+
+Join {
+    Type {
+        inner | (( left | right | full | cross | anti)  outer?)
+    }?
+    join
+    Source { 
+        (Identifier  As?) Other {(",") Identifier As?}* | 
+        SubSelect 
+    }
+ 
+    (JoinUsing {
+        using
+        "(" (Identifier | String) ("," Identifier | String)* ")"
+    } |
+    On {
+        on
+        expr
+    })?
+}
+
+fromClause {
+    SubSelect |
+    Query { Relations }
+}
+
+Relations {
+    Relation ("," Relation)*
+}
+  
+Relation {
+    "#" | (("#"? expr) As?)
+}
+
+targets {
+    (Target ("," Target)*) | ASTERISK
+}
+
+Target {
+    (expr | SubQuery) As? |
+    Wildcard { (Identifier ".*") }
+}
+
+expr {
+  ExprAnd |
+  ExprOr |
+  ExprNot |
+  ExprCase |
+  comparison
+}
+
+ExprAnd {
+    expr !and AND { and } expr 
+}
+
+ExprOr {
+    expr !or OR { or} expr 
+}
+
+ExprNot {
+    !not NOT { not } expr 
+}
+
+ExprCase {
+    case
+    Initial { expr }?
+    When {
+        when expr then expr
+    }+
+    Else {
+        else expr
+    }?
+    end
+}
+
+comparison {
+    Lt
+  | Lte
+  | Gt
+  | Gte 
+  | Eq
+  | Neq
+  | In
+  | NotIn
+  | Match
+  | NotMatch
+  | Matches
+  | IsNull
+  | IsNotNull
+  | NotBetween
+  | Between
+  | IsTrue
+  | IsNotTrue
+  | term
+}
+
+Lt {
+    predicate @specialize<Op, "<"> predicate
+}
+
+Lte {
+    predicate @specialize<Op, "<="> predicate
+}
+
+Gt {
+    predicate @specialize<Op, ">"> predicate
+}
+
+Gte {
+    predicate @specialize<Op, ">="> predicate
+}
+
+Eq {
+    predicate @specialize<Op, "="> predicate
+}
+
+Neq {
+    predicate (@specialize<Op, "!="> | @specialize<Op, "<>">) predicate
+}
+
+SubQuery {
+    "(" Statement Unions? ")"
+}
+
+In {
+   predicate
+   in
+   ListExpr
+}
+
+ListExpr {
+   "(" (predicate ("," predicate)+)? ")" |
+   predicate
+}
+
+NotIn {
+   predicate 
+   not in
+   ListExpr
+}
+
+Match {
+    predicate Op { @specialize<Op, "~*"> } predicate |
+    predicate Op { @specialize<Op, "~"> } predicate 
+}
+
+NotMatch {
+    predicate Op { @specialize<Op, "!~*"> } predicate | 
+    predicate Op { @specialize<Op, "!~"> } predicate 
+}
+
+Matches {
+    predicate Op { @specialize<Op, "?~*"> } predicate |
+    predicate Op { @specialize<Op, "?~"> } predicate 
+}
+
+IsNull {
+   term is null 
+}
+
+IsNotNull {
+   term is not null
+}
+
+IsTrue {
+    term is
+    Literal { Boolean }
+}
+
+IsNotTrue {
+    term is not
+    Literal { Boolean } 
+}
+
+Between {
+    predicate between predicate and predicate
+}
+
+NotBetween {
+    predicate not between predicate and predicate
+}
+
+
+term {
+  factor | CalcExpr 
+}
+
+predicate {
+    ( term | SubQuery )
+}
+
+CalcExpr {
+  term !plus PLUS term |
+  term !minus MINUS term |
+  term !times ASTERISK term |
+  term !div DIV term |
+  term !div MOD term 
+}
+
+Column {
+   Identifier Cast?
+}
+
+CastExpr {
+    cast "(" expr as Identifier ")"
+}
+
+factor {
+   unary | "(" expr ")" TypeCast { Cast }? 
+}
+
+unary {
+   Uplus | Uminus | primaryExpr
+}
+
+Uplus {
+     !uminus "+" factor 
+}
+
+Uminus {
+    !uminus "-" factor
+}
+
+primaryExpr {
+   Attribute | Subscript | atom | CastExpr
+}
+
+Attribute {
+    primaryExpr "." (Identifier | Function)
+}
+
+Subscript {
+    primaryExpr "[" String "]"
+}
+
+atom {
+     Column
+   | constant
+   | Placeholder
+   | Function
+}
+
+Function {
+    (
+      Identifier "(" Distinct Column ")" |
+      Identifier "(" (expr ("," expr)*)? ")" |
+      Identifier "(" ASTERISK ")" |
+      Identifier "(" Statement Unions? ")"
+    )
+    Filter {
+       filter
+      "(" 
+         where
+         expr
+       ")"
+    }?
+    Over? 
+    Cast?
+}
+
+Partition {
+    partition by
+    expr
+}
+
+Window {
+    Identifier
+    as
+   "(" Partition? OrderBy? Frame? Exclude?  ")"
+ }
+ 
+Windows {
+    window
+    Window ("," Window)*
+}
+ 
+Over {
+     over
+     (Identifier | "("  (Identifier? Partition? OrderBy? Frame? Exclude?) ")")
+}
+
+Exclude {
+    exclude
+    (
+        None {
+           no others
+        } |
+        Current {
+            current row
+        } |
+        Group {
+            group
+        } |
+        Ties {
+           ties
+        } 
+    )
+}
+
+Frame {
+    Type { rows | groups | range }
+    Range
+}
+
+Range {
+    between
+    Lower {
+      Unbounded { unbounded preceding } |
+      Integer  preceding |
+      Current { current row  }
+    }
+    and
+    Upper {
+      Unbounded {unbounded following } |
+      Integer  following  |
+      Current { current row}
+    }
+}
+
+Placeholder {
+     '%s'
+   | '?'
+   | ':' Identifier
+   | '%(' Identifier ')s'
+}
+
+constant {
+   Literal | List
+}
+
+List {
+   array "(" Literal ("," Literal)* ")" 
+}
+
+literal {
+   Date
+   | Decimal 
+   | Integer
+   | String
+   | Null
+   | Boolean
+   | Interval
+   | Timestamp
+   | TimestampWithTimeZone
+   | TimestamptzAtTimeZone
+}
+
+Literal {
+    literal Cast?
+}
+
+Cast {
+    "::" Type {
+        Identifier | keyword
+    }
+    Timezone {
+        at time zone
+        Zone { String }
+    }?
+}
+
+Interval {
+   interval
+   String
+}
+
+Timestamp {
+    timestamp
+    String
+}
+
+TimestampWithTimeZone {
+    timestamp with time zone
+    String
+}
+
+TimestamptzAtTimeZone {
+    timestamptz 
+    String
+    at time zone
+    Zone { String }
+}
+
+Boolean {
+    true | false
+}
+
+Null { null }
+
+CreateTable {
+    create table
+    Identifier
+    (
+        (Columns { '('  ColumnType ("," ColumnType)*  ')' } Using ?) |
+        Using |
+        As {
+            as Statement
+        }
+    )
+}
+
+ColumnType {
+    Identifier
+    Type { Identifier }
+    Size { "(" Integer ")"}?
+    Array { "[]" }?
+    Options {
+        (primary key)?
+    }
+}
+
+Insert {
+    insert into
+    Identifier
+    Columns { '('  Identifier ("," Identifier)*  ')' } ? 
+    values
+    Values ("," Values)*
+}
+
+Values {
+    '('  Value ("," Value)* ')'
+}
+
+Value {
+    expr
+}
+
+Using {
+   using String
+}
+
+keyword {
+    set | with | as | at | select |
+    balances | journal | print | where | group |
+    by | having | order | pivot | limit |
+    asc | desc | distinct | from | inner |
+    left | right | full | cross | anti | outer |
+    join | using | open | close | clear |
+    and | or | not | in | is | null |
+    between | filter | partition | window |
+    over | exclude | no | others | row | ties |
+    rows | groups | range | unbounded | preceding |
+    following | interval | timestamp | timestamptz |
+    time | zone | true | false | create | table |
+    insert | into | values | current | on |
+    case | when | then | else | end | union  | except | intersect |
+    primary | key | array | cast
+}
+
+@external tokens properties from "./tokens" { all }
+
+@external specialize {identifier} keywords from "./tokens" {
+    null
+}
+
+@external extend {identifier} keywords from "./tokens" {
+    set, with, as, at, select,
+    balances, journal, print, where, group,
+    by, having, order, pivot, limit,
+    asc, desc, distinct, from, inner,
+    left, right, full, cross, anti, outer,
+    join, using, open, close, clear,
+    and, or, not, in, is, 
+    between, filter, partition, window,
+    over, exclude, no, others, row, ties,
+    rows, groups, range, unbounded, preceding,
+    following, interval, timestamp, timestamptz,
+    time, zone, true, false, create, table,
+    insert, into, values, current, on,
+    case, when, then, else, end , union, except, intersect,
+    primary, key, array, cast 
+}
+
+Identifier {
+    identifier 
+}
+
+@tokens {
+    @precedence { Date, Decimal, Integer }
+    space { $[ \t\n]+ }
+    eof { @eof }
+    ASTERISK { "*" }
+    PLUS { "+" }
+    MINUS { "-" }
+    DIV { "/" }
+    MOD { "%" }
+    String {
+        "'" (!['\\] | "\\" _)* "'" |
+        "'" (!['] | "''")* "'"
+    }
+    Integer { @digit+ }
+    Decimal { @digit+ "." @digit* | @digit* "." @digit+ }
+    QuotedIdentifier {
+        '"' (!["])+ '"' 
+    }
+    identifier { $[a-zA-Z_]$[a-zA-Z0-9_]* | QuotedIdentifier }
+    Op { '<' | '<=' | '<>' | '>' | '>=' | '=' | '!=' | ('~' | '!~'  |  '?~') ASTERISK?  }
+    Date { @digit @digit @digit @digit "-" @digit @digit "-" @digit @digit }
+    LineComment { 
+        ( "//" |  "--") ![\n]* 
+    }    
+    BlockComment { "/*" blockCommentRest }
+    blockCommentRest { ![*] blockCommentRest | "*" blockCommentAfterStar }
+    blockCommentAfterStar { "/" | "*" blockCommentAfterStar | ![/*] blockCommentRest }
+    @precedence { BlockComment, LineComment }
+    @precedence { BlockComment, LineComment, MINUS}
+    @precedence { DIV, LineComment }
+    @precedence { LineComment, "-" }
+    @precedence { LineComment, ASTERISK }
+}

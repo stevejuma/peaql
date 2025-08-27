@@ -1,0 +1,399 @@
+@@grammar :: BQL
+@@parseinfo :: True
+@@ignorecase :: True
+@@keyword :: 'AND' 'AS' 'ASC' 'BY' 'DESC' 'DISTINCT' 'FALSE' 'FROM'
+    'GROUP' 'HAVING' 'IN' 'IS' 'LIMIT' 'NOT' 'OR' 'ORDER' 'PIVOT'
+    'SELECT' 'TRUE' 'WHERE'
+@@keyword :: 'CREATE' 'TABLE' 'USING' 'INSERT' 'INTO'
+@@keyword :: 'BALANCES' 'JOURNAL' 'PRINT'
+@@comments :: /(\/\*([^*]|[\r\n]|(\*+([^*\/]|[\r\n])))*\*+\/)/
+@@eol_comments :: /\;[^\n]*?$/
+
+bql
+    = @:statement [';'] $
+    ;
+
+statement
+    =
+    | select
+    | balances
+    | journal
+    | print
+    | create_table
+    | insert
+    ;
+
+select::Select
+    = 'SELECT' ['DISTINCT' distinct:`True`] targets:(','.{ target }+ | asterisk)
+      ['FROM' from_clause:(_table | subselect | from)]
+      ['WHERE' where_clause:expression]
+      ['GROUP' 'BY' group_by:groupby]
+      ['ORDER' 'BY' order_by:','.{order}+]
+      ['PIVOT' 'BY' pivot_by:pivotby]
+      ['LIMIT' limit:integer]
+    ;
+
+subselect
+    = '(' @:select ')'
+    ;
+
+from::From
+    =
+    | 'OPEN' ~ 'ON' open:date ['CLOSE' ('ON' close:date | {} close:`True`)] ['CLEAR' clear:`True`]
+    | 'CLOSE' ~ ('ON' close:date | {} close:`True`) ['CLEAR' clear:`True`]
+    | 'CLEAR' ~ clear:`True`
+    | expression:expression ['OPEN' 'ON' open:date] ['CLOSE' ('ON' close:date | {} close:`True`)] ['CLEAR' clear:`True`]
+    ;
+
+_table::Table
+    = name:/#([a-zA-Z_][a-zA-Z0-9_]*)?/
+    ;
+
+table::Table
+    = name:/[a-zA-Z_][a-zA-Z0-9_]*/
+    ;
+
+groupby::GroupBy
+    = columns:','.{ (integer | expression) }+ ['HAVING' having:expression]
+    ;
+
+order::OrderBy
+    = column:(integer | expression) ordering:ordering
+    ;
+
+ordering
+    = ['DESC' | 'ASC']
+    ;
+
+pivotby::PivotBy
+    = columns+:(integer | column) ',' columns+:(integer | column)
+    ;
+
+target::Target
+    = expression:expression ['AS' name:identifier]
+    ;
+
+expression
+    =
+    | disjunction
+    | conjunction
+    ;
+
+disjunction
+    =
+    | or
+    | conjunction
+    ;
+
+or::Or::BoolOp
+    = args+:conjunction { 'OR' args+:conjunction }+
+    ;
+
+conjunction
+    =
+    | and
+    | inversion
+    ;
+
+and::And::BoolOp
+    = args+:inversion { 'AND' args+:inversion }+
+    ;
+
+inversion
+    =
+    | not
+    | comparison
+    ;
+
+not::Not::UnaryOp
+    = 'NOT' operand:inversion
+    ;
+
+comparison
+    =
+    | any
+    | all
+    | lt
+    | lte
+    | gt
+    | gte
+    | eq
+    | neq
+    | in
+    | notin
+    | match
+    | notmatch
+    | matches
+    | isnull
+    | isnotnull
+    | between
+    | sum
+    ;
+
+any::Any
+    = left:sum op:op 'any' '(' right:expression ')'
+    ;
+
+all::All
+    = left:sum op:op 'all' '(' right:expression ')'
+    ;
+
+op
+    =
+    | '<'
+    | '<='
+    | '>'
+    | '>='
+    | '='
+    | '!='
+    | '~'
+    | '!~'
+    | '?~'
+    ;
+
+lt::Less::BinaryOp
+    = left:sum '<' right:sum
+    ;
+
+lte::LessEq::BinaryOp
+    = left:sum '<=' right:sum
+    ;
+
+gt::Greater::BinaryOp
+    = left:sum '>' right:sum
+    ;
+
+gte::GreaterEq::BinaryOp
+    = left:sum '>=' right:sum
+    ;
+
+eq::Equal::BinaryOp
+    = left:sum '=' right:sum
+    ;
+
+neq::NotEqual::BinaryOp
+    = left:sum '!=' right:sum
+    ;
+
+in::In::BinaryOp
+    = left:sum 'IN' right:sum
+    ;
+
+notin::NotIn::BinaryOp
+    = left:sum 'NOT' 'IN' right:sum
+    ;
+
+match::Match::BinaryOp
+    = left:sum '~' right:sum
+    ;
+
+notmatch::NotMatch::BinaryOp
+    = left:sum '!~' right:sum
+    ;
+
+matches::Matches::BinaryOp
+    = left:sum '?~' right:sum
+    ;
+
+isnull::IsNull::UnaryOp
+    = operand:sum 'IS' 'NULL'
+    ;
+
+isnotnull::IsNotNull::UnaryOp
+    = operand:sum 'IS' 'NOT' 'NULL'
+    ;
+
+between::Between
+    = operand:sum 'BETWEEN' lower:sum 'AND' upper:sum
+    ;
+
+sum
+    =
+    | add
+    | sub
+    | term
+    ;
+
+add::Add::BinaryOp
+    = left:sum '+' ~ right:term
+    ;
+
+sub::Sub::BinaryOp
+    = left:sum '-' ~ right:term
+    ;
+
+term
+    =
+    | mul
+    | div
+    | mod
+    | factor
+    ;
+
+mul::Mul::BinaryOp
+    = left:term '*' ~ right:factor
+    ;
+
+div::Div::BinaryOp
+    = left:term '/' ~ right:factor
+    ;
+
+mod::Mod::BinaryOp
+    = left:term '%' ~ right:factor
+    ;
+
+factor
+    =
+    | unary
+    | '(' @:expression ')'
+    ;
+
+unary
+    =
+    | uplus
+    | uminus
+    | primary
+    ;
+
+uplus
+    = '+' @:atom
+    ;
+
+uminus::Neg::UnaryOp
+    = '-' operand:factor
+    ;
+
+primary
+    =
+    | attribute
+    | subscript
+    | atom
+    ;
+
+attribute::Attribute
+    = operand:primary '.' name:identifier
+    ;
+
+subscript::Subscript
+    = operand:primary '[' key:string ']'
+    ;
+
+atom
+    =
+    | select
+    | function
+    | constant
+    | column
+    | placeholder
+    ;
+
+placeholder::Placeholder
+    =
+    | '%s' name:``
+    | '%(' name:identifier ')s'
+    ;
+
+function::Function
+    =
+    | fname:identifier '(' operands:','.{ expression } ')'
+    | fname:identifier '(' operands+:asterisk ')'
+    ;
+
+column::Column
+    = name:identifier
+    ;
+
+literal
+    =
+    | date
+    | decimal
+    | integer
+    | string
+    | null
+    | boolean
+    ;
+
+constant::Constant
+    = value:(literal | list)
+    ;
+
+list
+    = '(' &( literal ',') @:','.{ (literal | ()) }+ ')'
+    ;
+
+identifier
+    =
+    | unquoted_identifier
+    | quoted_identifier
+    ;
+
+@name
+unquoted_identifier
+    = /[a-zA-Z_][a-zA-Z0-9_]*/
+    ;
+
+quoted_identifier
+    = /\"((?:[^\"]|\"\")+)\"/
+    ;
+
+asterisk
+    = '*'
+    ;
+
+string
+    = /(\"[^\"]*\"|\'[^\']*\')/
+    ;
+
+boolean
+    = 'TRUE' | 'FALSE'
+    ;
+
+null
+    = 'NULL'
+    ;
+
+integer
+    = /[0-9]+/
+    ;
+
+decimal
+    = /[0-9]+\.[0-9]*|[0-9]*\.[0-9]+/
+    ;
+
+date
+    = /[0-9]{4}-[0-9]{2}-[0-9]{2}/
+    ;
+
+balances::Balances
+    = 'BALANCES'
+      ['AT' summary_func:identifier]
+      ['FROM' from_clause:from]
+      ['WHERE' where_clause:expression]
+    ;
+
+journal::Journal
+    = 'JOURNAL'
+      [account:string]
+      ['AT' summary_func:identifier]
+      ['FROM' from_clause:from]
+    ;
+
+print::Print
+    = 'PRINT'
+      ['FROM' from_clause:from]
+    ;
+
+create_table::CreateTable
+    = 'CREATE' 'TABLE' ~ name:identifier
+      (
+      | '(' columns:','.{( identifier identifier )} ')' ['USING' using:string]
+      | 'USING' using:string
+      | 'AS' query:select
+      )
+    ;
+
+insert::Insert
+    = 'INSERT' 'INTO' ~ table:table
+      ['(' columns:','.{column} ')']
+      'VALUES' '(' values:','.{expression} ')'
+    ;

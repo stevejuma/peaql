@@ -1,0 +1,183 @@
+/*
+PEG.JS gramma for sqllogictest files as described at http://www.sqlite.org/sqllogictest/doc/trunk/about.wiki
+By Mathias Rangel Wulff
+*/
+
+{
+	function doInt(o) {
+		return parseInt(o.join(""), 10);
+  	}
+}
+
+start 
+  = nl* l:limit c:command trim? 
+  	{	
+		c.skipif = l.skipif;
+		c.onlyif = l.onlyif;
+		return c;
+	}
+
+trim
+  = ([\n\t ]*) 
+
+
+command
+  = statement 
+  / query   
+  / hash 
+  / halt 
+  
+
+
+halt
+	= "halt"i 
+  		{	
+	  		return {
+	  					command:'halt'
+	  				}	 
+	  	}
+
+hash
+	= "hash-threshold" _ maxResponses:[0-9]+ 
+  		{
+  			return {
+  						command: 'setThreshold', 
+  						maxResponses: doInt(maxResponses)
+  					} 
+  		}
+
+statement
+  = expect:statementExpectation _* nl sql:sql 
+  	{
+  		return {
+  					command: 'execute', 
+  					expectSuccess: expect, 
+ 					sql:sql.trim(),
+  					result: {type:'statement'} 
+  				}
+  	}
+
+statementExpectation
+  = "statement"i ' ' v:statementOption {return v}
+
+statementOption
+  = "ok"i    {return true}
+  / "error"i  {return false}
+
+
+sql
+  = result:	(
+				t:(!delimitor .) {return t[1];}
+			)* 
+		delimitor {return result.join("");}
+	/ !.
+
+delimitor
+	= '\n----' _*
+	/ !.
+
+query
+  = queryMain:queryMain nl
+    sql:sql 
+    result:result?
+    {
+      if(result){
+        result.colType = queryMain.colInfo,
+        result.sort = queryMain.sortInfo
+      }
+      return {
+        command: 'execute',
+        expectSuccess: true,
+        sql: sql.trim(),
+        result: result,
+        label:queryMain.label
+      }
+    }
+
+result
+  =nl* result:resultVal{return result} 
+
+
+resultVal
+	= resultHash
+	/ resultList
+	/ resultVoid
+
+resultHash
+	= amount:$[0-9]+ 
+		" values hashing to " 
+		hash:alphanum 
+		{
+			return {
+				type:'hash',
+				amount: amount,
+				hash:hash
+			}
+		}
+
+
+resultList
+	= list:(v:$[^\n]+ (nl/!.){if(v.match(/NULL/i)){v = 'NULL'};return v})+
+	{
+		return {
+			type:'list',
+			values: list
+		}
+	}
+	
+resultVoid
+	= nl* !. {return {type:'void'}}
+	
+
+limit
+  = c:queryInitCommand* 
+  	{ 
+  		var skipif = [];
+  		var onlyif = [];
+		for (var i = c.length - 1; i >= 0; i--) {
+			if('skip' == c[i].type){
+				skipif.push(c[i].val);
+			} else if('only' == c[i].type){
+				onlyif.push(c[i].val);
+			}
+		};
+  		return {
+					skipif:skipif,
+					onlyif:onlyif
+				}
+  	}
+
+queryInitCommand
+  = "skipif"i ' ' v:alphanum _* nl {return {type:'skip', val: v.toLowerCase()}}
+  / "onlyif"i ' ' v:alphanum _* nl {return {type:'only', val: v.toLowerCase()}}
+
+
+queryMain
+ = "query"i _ colInfo:colInfo _? sortInfo:sortInfo? _? label:label? _* { return {colInfo:colInfo, sortInfo:sortInfo, label:label}}
+
+
+skipif
+  = "skipif"i _ alphanum
+
+
+colInfo
+  = [a-z]i+
+
+sortInfo
+  = "nosort"i {return 'nosort'}
+  / "rowsort"i {return 'rowsort'}
+  / "valuesort"i {return 'valuesort'}
+
+
+label
+	= $alphanum+
+
+alphanum
+	= $[a-z0-9_-]i+
+
+
+nl
+	= "\n"
+
+_
+	= ' '
