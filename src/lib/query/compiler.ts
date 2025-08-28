@@ -309,18 +309,18 @@ export class Compiler {
       });
   }
 
-  expandTargets(columns: Array<TargetExpression>) {
-      const targets: TargetExpression[] = [];
-      for (const target of columns) {
+  expandTargets(targets: Array<TargetExpression>) {
+      const expandTargets: TargetExpression[] = [];
+      for (const target of targets) {
         if (target.expression instanceof AsteriskExpression) {
-          targets.push(...this.compileAsteriskExpression(target.expression))
+          expandTargets.push(...this.expandTargets(this.compileAsteriskExpression(target.expression)))
         } else if (target.expression instanceof WildcardExpression) {
-          targets.push(...this.compileWildCard(target.expression));
+          expandTargets.push(...this.compileWildCard(target.expression));
         } else {
-          targets.push(target);
+          expandTargets.push(target);
         }
       }
-      return targets;
+      return expandTargets;
   }
 
   compileTargets(columns: Array<TargetExpression>) {
@@ -619,6 +619,9 @@ export class Compiler {
     // d.* d.age
     const column = this.table.getColumn(node.column);
     if (!column) {
+      if (node.column === this.table.name) {
+        return this.compileAsteriskExpression(new AsteriskExpression(node.parseInfo))
+      }
       throw new CompilationError(
         `column "${node.column}" not found in table "${this.table.name}"`, node
       );
