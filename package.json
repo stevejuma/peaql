@@ -1,6 +1,6 @@
 {
   "name": "peaql",
-  "version": "0.1.5",
+  "version": "0.1.4",
   "description": "PeaQL - A query language for data",
   "type": "module",
   "main": "dist/index.js",
@@ -25,12 +25,12 @@
   "sideEffects": false,
   "peerDependencies": {
     "@codemirror/language": "^6.11.3",
-    "@lezer/lr": "^1.4.2"
+    "@lezer/lr": "^1.4.2",
+    "luxon": "^3.5.0"
   },
   "dependencies": {
     "big.js": "^7.0.1",
-    "lodash-es": "^4.17.21",
-    "luxon": "^3.5.0"
+    "lodash-es": "^4.17.21"
   },
   "devDependencies": {
     "@lezer/generator": "^1.7.2",
@@ -60,6 +60,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/stevejuma/peaql.git"
+    "url": "git+https://github.com/stevejuma/peaql.git"
   }
 }
