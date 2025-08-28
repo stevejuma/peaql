@@ -53,7 +53,6 @@ describe("Parse", () => {
   testCases.forEach((testCase, i) => {
     test(`${i}: - ${testCase.query}`, () => {
       const parser = new Parser(testCase.query);
-      // console.log(parser.query)
       expect(parser.query.toString().trim()).toEqual(
         dedent(testCase.expected).trim(),
       );
