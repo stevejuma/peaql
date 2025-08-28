@@ -4,6 +4,7 @@ import {
   Expression,
   CreateTableExpression,
   InsertExpression,
+  StatementExpression,
 } from "../parser";
 import { Compiler, CompilerOptions } from "./compiler";
 import { Table } from "./models";
@@ -88,6 +89,10 @@ export class Context {
     };
   }
 
+  private isDDL(expr: Expression) {
+    return expr instanceof CreateTableExpression || expr instanceof InsertExpression || (expr instanceof StatementExpression && expr.statements.some(this.isDDL));
+  }
+
   compile(
     statement: string | PreparedStatment,
     parameters?: Record<string, Constant | Array<Constant>>,
@@ -103,9 +108,9 @@ export class Context {
         statement 
       );
     }
+
     if (
-      statement.expr instanceof CreateTableExpression ||
-      statement.expr instanceof InsertExpression
+      this.isDDL(statement.expr)
     ) {
       return new Compiler(this, options ?? this.compilerOptions).compile(
         statement.expr,

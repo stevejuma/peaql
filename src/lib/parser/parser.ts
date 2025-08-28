@@ -33,6 +33,7 @@ import {
   CaseExpression,
   CollectionExpression,
   CastExpression,
+  StatementExpression,
 } from "./ast";
 import { parser } from "./bql.grammar";
 import { SyntaxNode, Tree, type SyntaxNodeRef } from "@lezer/common";
@@ -287,10 +288,18 @@ export class Parser {
     });
   }
 
+  private isRootExpression(expr: Expression) {
+    return (expr instanceof Query) || (expr instanceof CreateTableExpression) || (expr instanceof InsertExpression);
+  }
+
   #query: Expression;
   get query(): Expression {
     if (this.#query) return this.#query;
     if (this.stack.length !== 1) {
+      if (this.stack.length > 1 && this.stack.every(this.isRootExpression)) {
+        this.#query = new StatementExpression(this.stack);
+        return this.#query;
+      }
       throw new CompilationError(
         `Invalid query stack(${this.stack.length})`,
         this.stack[this.stack.length - 1],

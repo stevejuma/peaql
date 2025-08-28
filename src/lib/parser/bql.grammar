@@ -1,5 +1,5 @@
 @top Bql { 
-    (Option ";"?)* statement ";" ? eof
+    (Option ";"?)* (statement ";"?)+ eof 
 }
 
 statement {

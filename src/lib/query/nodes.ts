@@ -21,9 +21,9 @@ import {
   NotSupportedError,
   ProgrammingError,
 } from "../errors";
-import { Op, OverExpression } from "../parser/ast";
+import { Expression, Op, OverExpression } from "../parser/ast";
 import { Table } from "./models";
-import { getColumnsAndAggregates, isAggregate } from "./compiler";
+import { Compiler, getColumnsAndAggregates, isAggregate } from "./compiler";
 import { Context } from "./context";
 
 export type Constant = number | string | boolean | null | DateTime | Duration;
@@ -253,14 +253,23 @@ export class EvalInsert extends EvalNode {
     return this.values.map((it) => Object.values(it)).flat();
   }
 
-  resolve(context?: any) {
+  resolve(context?: any):  [{ name: symbol; type: DType }[], unknown[][]]  {
+    const columns: Record<string, DType> = {};
+    const rows: Array<Array<unknown>> = [];
     this.values.forEach((item) => {
       const row: Record<string, unknown> = {};
+      const record: unknown[] = [];
       for (const [key, value] of Object.entries(item)) {
+        columns[key] ||= this.table.getColumn(key).type;
         row[key] = value.resolve(context);
+        record.push(row[key]);
       }
+      rows.push(record);
       this.table.props.data.push(row);
     });
+
+    const keys = Object.keys(columns).map(k => Symbol(k))
+    return [keys.map(name => ({name, type: columns[name.description]})), rows]
   }
 
   isEqual(obj: any): boolean {
@@ -1047,6 +1056,38 @@ export class EvalConstantSubqueryValue extends EvalNode {
   }
 }
 
+export class EvalStatements extends EvalNode {
+  constructor(readonly context: Context, readonly compiler: Compiler, readonly statements: Expression[]) {
+    super(EvalStatements)
+  }
+
+  resolve(context?: any) {
+    let response: any;
+    for (const statement of this.statements) {
+       const expr = this.compiler.compileExpression(statement);
+       response = expr.resolve(context);
+    }
+    return response;
+  }
+
+  isEqual(obj: any): boolean {
+    if (!(obj instanceof EvalStatements) || this.statements.length !== obj.statements.length) {
+      return false;
+    }
+    for (let i=0; i<this.statements.length; i++) {
+      if (!isEqual(this.statements[i], obj.statements[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  get childNodes(): EvalNode[] {
+    return [];
+  }
+  
+}
+
 export class EvalQuery extends EvalNode {
   constructor(
     readonly table: Table,
@@ -1229,7 +1270,7 @@ export class EvalCreateTable extends EvalNode {
   constructor(
     readonly context: Context,
     readonly name: string,
-    readonly columns: Array<{ name: string; type: DType }>,
+    readonly columns: Array<{ name: symbol; type: DType }>,
     readonly using: string = "",
     readonly data?: EvalQuery,
   ) {
@@ -1237,12 +1278,12 @@ export class EvalCreateTable extends EvalNode {
   }
 
   get childNodes(): EvalNode[] {
-    throw new Error("Method not implemented.");
+    return [];
   }
 
-  resolve(context?: any): [{ name: string; type: DType }[], unknown[][]] {
+  resolve(context?: any): [{ name: symbol; type: DType }[], unknown[][]] {
     const columns = this.columns.map(
-      (it) => new AttributeColumn(it.name, it.type),
+      (it) => new AttributeColumn(it.name.description, it.type),
     );
     let table = Table.create(this.name, ...columns);
     const data: unknown[][] = [];

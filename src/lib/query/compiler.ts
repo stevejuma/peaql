@@ -30,6 +30,7 @@ import {
   CaseExpression,
   CollectionExpression,
   CastExpression,
+  StatementExpression,
 } from "..";
 import {
   CompilationError,
@@ -63,6 +64,7 @@ import {
   EvalCreateTable,
   findFunction,
   findOperator,
+  EvalStatements,
 } from "./nodes";
 import { SubQueryTable, Table } from "./models";
 import { Context } from "./context";
@@ -956,6 +958,8 @@ export class Compiler {
       return this.compileExpression(
         new FunctionExpression(node.parseInfo, node.type, [node.expr]),
       );
+    } else if (node instanceof StatementExpression) {
+      return new EvalStatements(this.context, this, node.statements);
     }
 
     throw new NotSupportedError(
@@ -1452,12 +1456,12 @@ export class Compiler {
   }
 
   compileCreateTable(node: CreateTableExpression) {
-    const columns: Array<{ name: string; type: DType }> = [];
+    const columns: Array<{ name: symbol; type: DType }> = [];
     const query = node.query ? this.compileQuery(node.query) : undefined;
     node.columns.forEach((col) => {
       const type = typeFor(col.type);
       if (type) {
-        columns.push({ name: col.name, type: col.array ? [type] : type });
+        columns.push({ name: Symbol(col.name), type: col.array ? [type] : type });
       } else {
         throw new CompilationError(`unrecognized type "${col.type}"`, node);
       }
@@ -1465,7 +1469,7 @@ export class Compiler {
     if (!node.columns.length && query) {
       query.columns.forEach((col) => {
         if (col.name) {
-          columns.push({ name: col.name.description, type: col.type });
+          columns.push({ name: col.name, type: col.type });
         }
       });
     }

@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { Context } from "./context";
 import { AttributeColumn } from "./nodes";
 import { Table } from "./models";
-import { normalizeColumns } from "./types";
+import { INTEGER, normalizeColumns } from "./types";
 
 describe("Simple Queries", () => {
   const context = new Context().withDefaultTable("postings").withTables(
@@ -15,6 +15,23 @@ describe("Simple Queries", () => {
       { a: 2.03, b: "two" },
     ]),
   );
+
+  test("Execute multiple", () => {
+    const [columns, data] = context.execute(`
+      CREATE TABLE t1(a STRING, b INTEGER);
+      
+      INSERT INTO t1 
+      VALUES('peter',1), ('pan', 2);
+
+      SELECT * from t1;
+    `);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "a", type: String },
+      { name: "b", type: INTEGER },
+    ]);
+    expect(data).toEqual([["peter", 1], ["pan", 2]]);
+  });
+
 
   test("SELECT sum(a)", () => {
     const [columns, data] = context.execute(`SELECT sum(a).toFixed(1) total`);

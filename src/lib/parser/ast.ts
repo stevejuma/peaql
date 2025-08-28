@@ -406,6 +406,22 @@ export class AnyExpression extends Expression {
   }
 }
 
+export class StatementExpression extends Expression {
+   constructor(
+    readonly statements: Expression[]
+  ) {
+    super(statements[0].parseInfo);
+  }
+
+  toString() {
+    return this.statements.map(statement => statement.toString()).join(";\n");
+  }
+
+  children(): Expression[] {
+    return this.statements.map(it => it.children()).flat()
+  }
+}
+
 export class CreateTableExpression extends Expression {
   constructor(
     parseInfo: ParseInfo,
@@ -422,6 +438,10 @@ export class CreateTableExpression extends Expression {
       return `CREATE TABLE ${this.name} AS ${this.query}`;
     }
     return `CREATE TABLE ${this.name}(\n  ${this.columns.map((it) => `${it.name} ${it.type}${it.array ? "[]" : ""}`).join("  \n")}\n)${this.using ? `"${this.using}"` : ""}`;
+  }
+
+  children(): Expression[] {
+    return [];
   }
 }
 
