@@ -53,7 +53,6 @@ describe("Joins", () => {
     ]),
   );
 
-
   test("INNER JOIN", () => {
     const [columns, data] = context.execute(`
         SELECT employees.employee_id, employees.last_name, title

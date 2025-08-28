@@ -38,7 +38,11 @@ describe("Simple Queries", () => {
     expect(data).toEqual([["1.000"], ["2.030"]]);
   });
 
-  ["SELECT * FROM postings", "SELECT postings.* FROM postings", "SELECT p.* FROM postings p"].forEach(query => {
+  [
+    "SELECT * FROM postings",
+    "SELECT postings.* FROM postings",
+    "SELECT p.* FROM postings p",
+  ].forEach((query) => {
     test("SELECT all wildcard columns: " + query, () => {
       const [columns, data] = context.execute(query);
       expect(normalizeColumns(columns)).toEqual([
@@ -50,8 +54,7 @@ describe("Simple Queries", () => {
         [2.03, "two"],
       ]);
     });
-  })
-
+  });
 
   test("SELECT duplicate columns with *", () => {
     const [columns, data] = context.execute(`SELECT *, * FROM postings`);

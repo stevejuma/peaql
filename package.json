@@ -15,7 +15,8 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui --coverage",
     "test:run": "vitest run",
-    "fmt": "prettier ./ --write"
+    "fmt": "prettier ./ --write",
+    "check": "npm run lint && npm run check-types"
   },
   "exports": {
     "import": "./dist/index.js"
