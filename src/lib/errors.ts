@@ -1,4 +1,5 @@
 import { Expression } from "./parser";
+import { PreparedStatment } from "./query";
 
 interface ErrorOptions {
   cause?: unknown;
@@ -108,7 +109,7 @@ export class CompilationError extends Error {
 export class StatementError extends Error {
   constructor(
     message: string,
-    readonly errors: Error[],
+    readonly statement: PreparedStatment,
     readonly options?: ErrorOptions,
   ) {
     super(message, options);
@@ -120,7 +121,7 @@ export class ParseError extends Error {
     message: string,
     readonly options: {
       node: string;
-      position: [number, number];
+      position: {from: number; to: number};
       content: string;
       cause?: unknown;
     },

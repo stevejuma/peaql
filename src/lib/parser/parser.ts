@@ -281,7 +281,7 @@ export class Parser {
   ): ParseError {
     return new ParseError(message, {
       node: node.toString(),
-      position: [node.from, node.to],
+      position: {from: node.from, to: node.to},
       content: this.content(node),
       cause,
     });

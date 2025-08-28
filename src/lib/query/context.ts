@@ -99,8 +99,8 @@ export class Context {
 
     if (statement.errors.length) {
       throw new StatementError(
-        `${statement.errors.map((it) => `${statement.query}\n\n${it.options.node}: ${it.message}`).join("\n")}`,
-        statement.errors,
+        'Error processing statement',
+        statement 
       );
     }
     if (
