@@ -16,7 +16,7 @@
     "test:ui": "vitest --ui --coverage",
     "test:run": "vitest run",
     "fmt": "prettier ./ --write",
-    "check": "npm run lint && npm run check-types && npm run test",
+    "check": "npm run lint && npm run check-types && npm run test:run",
     "publish": "npm run check && npm run build && npm version minor -m \"chore: bump version to %s\" && git push --follow-tags"
   },
   "exports": {
