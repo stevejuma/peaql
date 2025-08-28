@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { DateTime, DateTimeOptions, DateTimeUnit, Duration } from "luxon";
-import { CompilationError } from "../errors";
+import { OperationalError } from "../errors";
 import { Decimal, isValidNumber, NumberSource } from "../decimal";
 
 import {
@@ -736,10 +736,10 @@ function round(value: number, digits: number = 2): Decimal {
   return toDecimal(value)?.toScale(digits) ?? null;
 }
 
-createFunction("toFixed", [Number], Decimal, toFixed, false);
-createFunction("toFixed", [Decimal], Decimal, toFixed, false);
-function toFixed(value: number, digits: number): Decimal {
-  return toDecimal(value)?.toScale(digits) ?? null;
+createFunction("toFixed", [Number, Number], String, toFixed);
+createFunction("toFixed", [Decimal, Number], String, toFixed);
+function toFixed(value: number | Decimal, digits: number): string {
+  return toDecimal(value)?.toFixed(digits);
 }
 
 createFunction("length", [Set], Number, length, true);
@@ -1135,7 +1135,7 @@ function sum(
     const value = operand.resolve(context);
     const type = typeOf(value);
     if (!isSameType(type, operand.type)) {
-      throw new CompilationError(
+      throw new OperationalError(
         `Invalid type expected: sum(${typeName(operand.type)})  got: sum(${typeName(type)})`,
       );
     }
@@ -1165,7 +1165,7 @@ function avg(
     const type = typeOf(value);
     if (!isNull(value)) {
       if (type !== operand.type) {
-        throw new CompilationError(
+        throw new OperationalError(
           `Invalid type expected: avg(${typeName(operand.type)})  got: avg(${typeName(type)})`,
         );
       }

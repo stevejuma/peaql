@@ -17,7 +17,7 @@ import {
   structureFor,
   typeOf,
 } from "./types";
-import { CompilationError } from "../errors";
+import { InternalError } from "../errors";
 
 export type TableProps = {
   data: unknown[];
@@ -129,7 +129,7 @@ export class Table {
     }
 
     if (columns.length > 1) {
-      throw new CompilationError(`ambiguous identifier "${name}"`);
+      throw new InternalError(`ambiguous identifier "${name}"`);
     }
     return columns[0];
   }
@@ -208,7 +208,10 @@ export class Table {
     return new Table(name, columns);
   }
 
-  static fromObject(name: string, records: Array<Record<string, unknown>>): Table {
+  static fromObject(
+    name: string,
+    records: Array<Record<string, unknown>>,
+  ): Table {
     const columns: Record<string, Set<DType>> = {};
 
     for (const record of records) {
@@ -219,9 +222,9 @@ export class Table {
       }
     }
 
-    const columnTypes: Record<string, EvalNode> = {}
-    for(const [key, types] of Object.entries(columns)) {
-      const validTypes = [...types].filter(t => t !== NULL);
+    const columnTypes: Record<string, EvalNode> = {};
+    for (const [key, types] of Object.entries(columns)) {
+      const validTypes = [...types].filter((t) => t !== NULL);
       if (validTypes.length == 1) {
         columnTypes[key] = new AttributeColumn(key, validTypes[0]);
         continue;

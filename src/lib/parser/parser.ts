@@ -291,8 +291,10 @@ export class Parser {
   get query(): Expression {
     if (this.#query) return this.#query;
     if (this.stack.length !== 1) {
-      console.log(this.stack);
-      throw new CompilationError(`Invalid query stack(${this.stack.length})`);
+      throw new CompilationError(
+        `Invalid query stack(${this.stack.length})`,
+        this.stack[this.stack.length - 1],
+      );
     }
     this.#query = this.stack.pop();
     return this.#query;
@@ -309,6 +311,7 @@ export class Parser {
     }
     throw new CompilationError(
       `Unexpected node. Expected Query found(${qs.constructor.name}): ${qs}`,
+      qs,
     );
   }
 
@@ -382,19 +385,17 @@ export class Parser {
         ),
       );
     } else if (node.name == "Statement") {
-      this.stack.push(
-        new Query(
-          new SelectClause(parseInfo, new AsteriskExpression(parseInfo)),
-        ),
-      );
+      this.stack.push(new Query(new SelectClause(parseInfo, [])));
     } else if (node.name === "Select") {
-      const column: AsteriskExpression | TargetExpression[] =
-        node.node.getChild("ASTERISK") ? new AsteriskExpression(parseInfo) : [];
       this.lastQuery.select = new SelectClause(
         parseInfo,
-        column,
+        [],
         node.node.getChild("Distinct") ? true : false,
       );
+    } else if (node.name === "Target") {
+      if (node.node.getChild("ASTERISK")) {
+        this.add(new AsteriskExpression(parseInfo));
+      }
     } else if (node.name === "Gt") {
       this.add(new BooleanExpression(parseInfo, ">", []));
     } else if (node.name === "Lt") {
@@ -604,12 +605,8 @@ export class Parser {
       if (this.stack.length) {
         const expr = this.stack.pop();
         const query = this.lastQuery;
-        if (Array.isArray(query.select.targets)) {
-          const alias = this.getAlias(node);
-          query.select.targets.push(
-            new TargetExpression(parseInfo, expr, alias),
-          );
-        }
+        const alias = this.getAlias(node);
+        query.select.targets.push(new TargetExpression(parseInfo, expr, alias));
       }
     } else if (node.name === "Union") {
       const expr = this.stack.pop();
@@ -621,6 +618,7 @@ export class Parser {
       } else {
         throw new CompilationError(
           `Expected query found(${expr.constructor.name}): ${expr}`,
+          expr,
         );
       }
     } else if (node.name === "TypeCast") {
@@ -764,6 +762,7 @@ export class Parser {
         } else {
           throw new CompilationError(
             `Expected OrderByExpression found ${expr}`,
+            value,
           );
         }
       }
@@ -777,7 +776,10 @@ export class Parser {
       const over = node.node.getChild("Over") ? this.stack.pop() : undefined;
       if (over) {
         if (!(over instanceof OverExpression)) {
-          throw new CompilationError(`Expected OverExpression found: ${over}`);
+          throw new CompilationError(
+            `Expected OverExpression found: ${over}`,
+            over,
+          );
         }
       }
       const expr = node.node.getChild("ASTERISK");
@@ -835,12 +837,14 @@ export class Parser {
           if (windows[expr.name]) {
             throw new CompilationError(
               `Duplicate window expression: ${expr}, window ${expr.name} already exists as ${windows[expr.name]}`,
+              expr,
             );
           }
           windows[expr.name] = expr;
         } else {
           throw new CompilationError(
             `Invalid window declaration, expected :OverExpression found: ${expr}`,
+            expr,
           );
         }
       });
@@ -929,12 +933,14 @@ export class Parser {
       if (!name) {
         throw new CompilationError(
           `Invalid WITH query expected a CTE name: ${subQuery}`,
+          subQuery,
         );
       }
       if (subQuery instanceof Query) {
         if (this.lastQuery.commonTableExpressions[name]) {
           throw new CompilationError(
             `WITH query name "${name}" specified more than once`,
+            subQuery,
           );
         }
         this.lastQuery.commonTableExpressions[name] = subQuery;
@@ -1107,6 +1113,7 @@ export class Parser {
         } else {
           throw new CompilationError(
             `FROM expression needs to have an alias: ${from.from}`,
+            from.from,
           );
         }
 
@@ -1117,6 +1124,7 @@ export class Parser {
         } else {
           throw new CompilationError(
             `JOIN expression needs to have an alias: ${table}`,
+            table,
           );
         }
 
@@ -1152,6 +1160,7 @@ export class Parser {
       ) {
         throw new CompilationError(
           `Subqery expression missing alias: ${table}`,
+          table,
         );
       }
 
@@ -1159,6 +1168,7 @@ export class Parser {
       if (!type || !table || !condition) {
         throw new CompilationError(
           `Invalid JOIN clause, expected: T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 ON boolean_expression found: ${this.content(node)}`,
+          condition,
         );
       }
 
@@ -1176,6 +1186,7 @@ export class Parser {
       if (additionalTables.length && type !== "CROSS") {
         throw new CompilationError(
           `syntax error at or near ","\n, ${this.content(source.getChild("Other"))}`,
+          condition,
         );
       }
 

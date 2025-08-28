@@ -166,10 +166,11 @@ Relation {
 }
 
 targets {
-    (Target ("," Target)*) | ASTERISK
+    (Target ("," Target)*)
 }
 
 Target {
+    ASTERISK |
     (expr | SubQuery) As? |
     Wildcard { (Identifier ".*") }
 }

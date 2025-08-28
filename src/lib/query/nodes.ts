@@ -17,6 +17,7 @@ import {
 import { executeSelect } from "./query_execute";
 import {
   CompilationError,
+  DataError,
   NotSupportedError,
   ProgrammingError,
 } from "../errors";
@@ -525,7 +526,7 @@ export class EvalAnd extends EvalNode {
     super(Boolean);
     args.forEach((expr) => {
       if (expr.type !== Boolean) {
-        throw new CompilationError(
+        throw new DataError(
           `argument of AND must be type boolean, not type ${typeName(expr.type)}`,
         );
       }
@@ -566,7 +567,7 @@ export class EvalOr extends EvalNode {
     super(Boolean);
     args.forEach((expr) => {
       if (expr.type !== Boolean) {
-        throw new CompilationError(
+        throw new DataError(
           `argument of OR must be type boolean, not type ${typeName(expr.type)}`,
         );
       }
@@ -779,7 +780,7 @@ export class EvalAny extends EvalNode {
     }
 
     if (!Array.isArray(right)) {
-      throw new CompilationError(
+      throw new DataError(
         `not a list or set but ${right} ${typeName(right.type)}(${typeName(right)})`,
       );
     }
@@ -846,7 +847,7 @@ export class EvalAll extends EvalNode {
     }
 
     if (!Array.isArray(right)) {
-      throw new CompilationError(
+      throw new DataError(
         `not a list or set but ${typeName(right.type)}(${typeName(right)})`,
       );
     }
@@ -1223,7 +1224,6 @@ export function typedTupleToColumns(
   });
   return columns;
 }
-
 
 export class EvalCreateTable extends EvalNode {
   constructor(

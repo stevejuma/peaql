@@ -521,7 +521,7 @@ export class TargetExpression extends Expression {
 export class SelectClause extends Expression {
   constructor(
     parseInfo: ParseInfo,
-    readonly targets: Array<TargetExpression> | AsteriskExpression,
+    readonly targets: Array<TargetExpression>,
     readonly distinct: boolean = false,
   ) {
     super(parseInfo);
@@ -606,13 +606,17 @@ export class AttributeExpression extends Expression {
   constructor(
     parseInfo: ParseInfo,
     readonly operand: Expression,
-    readonly name: string | Expression,
+    readonly name: string | FunctionExpression | CastExpression,
   ) {
     super(parseInfo);
   }
 
   children(): Expression[] {
-    return this.operand.children();
+    const children = [...this.operand.children()];
+    if (this.name instanceof Expression) {
+      children.push(...this.name.children());
+    }
+    return children;
   }
 
   public toString() {

@@ -8,7 +8,7 @@ import {
 import { Compiler, CompilerOptions } from "./compiler";
 import { Table } from "./models";
 import { DateTime, Duration } from "luxon";
-import { CompilationError, ParseError } from "../errors";
+import { ParseError, StatementError } from "../errors";
 import { EvalNode } from "./types";
 type Constant = number | string | boolean | null | DateTime | Duration;
 
@@ -19,10 +19,10 @@ export interface PreparedStatment {
   settings: Record<string, Constant | Array<Constant>>;
 }
 
-
 export class Context {
   readonly tables = new Map<string, Table>();
   readonly settings: Record<string, Constant | Array<Constant>> = {};
+  readonly compilerOptions: Partial<CompilerOptions> = {};
 
   constructor(
     readonly errors: Error[] = [],
@@ -32,6 +32,11 @@ export class Context {
       table.setContext(this);
       this.tables.set(table.name, table);
     });
+  }
+
+  withDefaultTable(name: string): this {
+    this.compilerOptions.defaultTableName = name;
+    return this;
   }
 
   withTables(...tables: Table[]) {
@@ -62,9 +67,7 @@ export class Context {
     return context;
   }
 
-  prepare(
-    query: string,
-  ): PreparedStatment {
+  prepare(query: string): PreparedStatment {
     const [expr, errors, options] = parseQuery(query);
     const settings = options.reduce(
       (acc: Record<string, Constant | Array<Constant>>, option) => {
@@ -78,41 +81,52 @@ export class Context {
       {},
     );
     return {
-       query, expr, errors, settings
+      query,
+      expr,
+      errors,
+      settings,
     };
   }
 
   compile(
     statement: string | PreparedStatment,
     parameters?: Record<string, Constant | Array<Constant>>,
-    options: Partial<CompilerOptions> = {},
+    options?: Partial<CompilerOptions>,
   ): EvalNode {
     if (typeof statement === "string") {
       return this.compile(this.prepare(statement), parameters, options);
     }
 
     if (statement.errors.length) {
-      throw new CompilationError(
+      throw new StatementError(
         `${statement.errors.map((it) => `${statement.query}\n\n${it.options.node}: ${it.message}`).join("\n")}`,
+        statement.errors,
       );
     }
     if (
       statement.expr instanceof CreateTableExpression ||
       statement.expr instanceof InsertExpression
     ) {
-      return new Compiler(this, options).compile(statement.expr, parameters);
+      return new Compiler(this, options ?? this.compilerOptions).compile(
+        statement.expr,
+        parameters,
+      );
     }
-    return new Compiler(this.copy({ settings: statement.settings }), options).compile(
-      statement.expr,
-      parameters,
-    );
+    return new Compiler(
+      this.copy({ settings: statement.settings }),
+      options ?? this.compilerOptions,
+    ).compile(statement.expr, parameters);
   }
 
   execute(
     query: string | PreparedStatment,
     parameters?: Record<string, Constant | Array<Constant>>,
-    options: Partial<CompilerOptions> = {},
+    options?: Partial<CompilerOptions>,
   ) {
-    return this.compile(query, parameters, options).resolve();
+    return this.compile(
+      query,
+      parameters,
+      options ?? this.compilerOptions,
+    ).resolve();
   }
 }

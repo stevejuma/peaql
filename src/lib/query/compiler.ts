@@ -68,10 +68,9 @@ import { SubQueryTable, Table } from "./models";
 import { Context } from "./context";
 import { NULL, structureFor, typeFor } from "./types";
 import { ASTERISK, DType, EvalNode, isNull, typeName } from "./types";
-import { DateTime } from "luxon";
 import "./query_env";
 
-const NULLTABLE = Object.freeze(Table.create(""));
+const NULLTABLE = Object.freeze(Table.create("<null>"));
 
 export type CompilerOptions = {
   supportImplicitGroupBy: boolean;
@@ -89,7 +88,6 @@ export class Compiler {
   queries: Array<Query> = [];
   modes: Array<string> = [];
   expressions: Array<Expression> = [];
-  contexts: Array<any> = [];
   readonly options: CompilerOptions;
 
   constructor(
@@ -97,7 +95,6 @@ export class Compiler {
     options: Partial<CompilerOptions> = {},
   ) {
     this.options = { ...COMPILER_OPTIONS, ...options };
-    this.contexts.push(context);
   }
 
   get mode() {
@@ -199,7 +196,7 @@ export class Compiler {
   ): EvalQuery {
     if (!this.table) {
       throw new CompilationError(
-        `No active table for query: ${this.options.defaultTableName}`,
+        `No active table for query: ${this.options.defaultTableName}`, node
       );
     }
     this.stack.push(this.table);
@@ -218,7 +215,7 @@ export class Compiler {
     let where = this.compileExpression(node.where);
     if (where && where.type !== Boolean) {
       throw new CompilationError(
-        `argument of WHERE must be type boolean, not type ${typeName(where.type)}`,
+        `argument of WHERE must be type boolean, not type ${typeName(where.type)}`, node.where
       );
     }
 
@@ -227,7 +224,7 @@ export class Compiler {
     // contain any aggregate.
     if (where && isAggregate(where)) {
       throw new CompilationError(
-        `aggregates are not allowed in WHERE clause: ${node.where}`,
+        `aggregates are not allowed in WHERE clause: ${node.where}`, node.where
       );
     }
 
@@ -291,37 +288,43 @@ export class Compiler {
     return compiledQuery;
   }
 
-  compileTargets(columns: Array<TargetExpression> | AsteriskExpression) {
-    const derivedTargets =
-      columns instanceof AsteriskExpression
-        ? this.table.wildcardColumns.map((name) => {
-            const type = this.table.columns.get(name)!.type;
-            if (structureFor(type)) {
-              return new TargetExpression(
-                columns.parseInfo,
-                new WildcardExpression(columns.parseInfo, name),
-              );
-            }
-            return new TargetExpression(
-              columns.parseInfo,
-              new AttributeExpression(
-                columns.parseInfo,
-                new ColumnExpression(columns.parseInfo, this.table.name),
-                name,
-              ),
-              name,
-            );
-          })
-        : columns;
-    const targets: TargetExpression[] = [];
-    derivedTargets.forEach((target) => {
-      if (target.expression instanceof WildcardExpression) {
-        targets.push(...this.compileWildCard(target.expression));
-      } else {
-        targets.push(target);
-      }
-    });
+  compileAsteriskExpression(expression: AsteriskExpression) {
+    return this.table.wildcardColumns.map((name) => {
+        const type = this.table.columns.get(name)!.type;
+        if (structureFor(type)) {
+          return new TargetExpression(
+            expression.parseInfo,
+            new WildcardExpression(expression.parseInfo, name),
+          );
+        }
+        return new TargetExpression(
+          expression.parseInfo,
+          new AttributeExpression(
+            expression.parseInfo,
+            new ColumnExpression(expression.parseInfo, this.table.name),
+            name,
+          ),
+          name,
+        );
+      });
+  }
 
+  expandTargets(columns: Array<TargetExpression>) {
+      const targets: TargetExpression[] = [];
+      for (const target of columns) {
+        if (target.expression instanceof AsteriskExpression) {
+          targets.push(...this.compileAsteriskExpression(target.expression))
+        } else if (target.expression instanceof WildcardExpression) {
+          targets.push(...this.compileWildCard(target.expression));
+        } else {
+          targets.push(target);
+        }
+      }
+      return targets;
+  }
+
+  compileTargets(columns: Array<TargetExpression>) {
+    const targets: TargetExpression[] = this.expandTargets(columns);
     const compiledTargets: EvalTarget[] = [];
 
     for (const [i, target] of targets.entries()) {
@@ -329,7 +332,7 @@ export class Compiler {
       if (expr instanceof EvalQuery) {
         if (expr.columns.length > 1) {
           throw new CompilationError(
-            `subquery must return only one column\n${targets[i]}`,
+            `subquery must return only one column\n${targets[i]}`, target.expression
           );
         }
         expr = new EvalConstantSubqueryValue(expr);
@@ -349,7 +352,7 @@ export class Compiler {
         windowFunctions.forEach((agg) => {
           if (agg.aggregates.length > 1) {
             throw new CompilationError(
-              `aggregate function calls cannot be nested: ${target}`,
+              `aggregate function calls cannot be nested: ${target}`, target
             );
           }
         });
@@ -363,7 +366,7 @@ export class Compiler {
           agg.childNodes.forEach((child) => {
             if (isAggregate(child)) {
               throw new CompilationError(
-                `aggregate function calls cannot be nested: ${target}`,
+                `aggregate function calls cannot be nested: ${target}`, target
               );
             }
           });
@@ -393,13 +396,13 @@ export class Compiler {
         ) {
           if (orderSpec.length !== 1) {
             throw new CompilationError(
-              `RANGE with offset PRECEDING/FOLLOWING requires exactly one ORDER BY column`,
+              `RANGE with offset PRECEDING/FOLLOWING requires exactly one ORDER BY column`, window.expression.orderBy
             );
           }
           const type = compiledTargets[orderSpec[0][0]].type;
           if (type === String) {
             throw new CompilationError(
-              `RANGE with offset PRECEDING/FOLLOWING is not supported for column type text`,
+              `RANGE with offset PRECEDING/FOLLOWING is not supported for column type text`, window.expression.orderBy
             );
           }
         }
@@ -410,7 +413,7 @@ export class Compiler {
         window.expression.orderBy?.columns?.length !== 1
       ) {
         throw new CompilationError(
-          `RANGE with offset PRECEDING/FOLLOWING requires exactly one ORDER BY column`,
+          `RANGE with offset PRECEDING/FOLLOWING requires exactly one ORDER BY column`, window.expression.orderBy
         );
       }
 
@@ -436,7 +439,7 @@ export class Compiler {
       overExpr = this.queries[this.queries.length - 1].windows[node.name];
       if (!overExpr) {
         throw new CompilationError(
-          `Invalid window: ${node.name} specified in ${node}`,
+          `Invalid window: ${node.name} specified in ${node}`, overExpr
         );
       }
       if (node.partitionBy) {
@@ -482,7 +485,7 @@ export class Compiler {
           rightKey = joinExpr.table.as;
         } else {
           throw new CompilationError(
-            `Subqery expression missing alias: ${joinTable}`,
+            `Subqery expression missing alias: ${joinTable}`, joinExpr.table
           );
         }
         table = new SubQueryTable(this.compileQuery(joinTable.query), rightKey);
@@ -497,7 +500,7 @@ export class Compiler {
         this.table.joins.set(rightKey, table);
         right.push(...table);
       } else {
-        throw new CompilationError(`relation "${joinTable}" does not exists`);
+        throw new CompilationError(`relation "${joinTable}" does not exists`, joinTable);
       }
 
       const results: unknown[] = [];
@@ -563,51 +566,8 @@ export class Compiler {
 
   compileFrom(
     node?: FromClause,
-    options?: Record<string, Constant | Array<Constant>>,
+    _options?: Record<string, Constant | Array<Constant>>,
   ) {
-    if (options) {
-      if (options.close || options.open || options.clear) {
-        const props: {
-          open?: DateTime;
-          close?: DateTime | boolean;
-          clear?: boolean;
-        } = {};
-        if (options.close) {
-          if (options.close instanceof DateTime) {
-            props.close = options.close;
-          } else if (typeof options.close === "boolean") {
-            props.close = options.close;
-          } else {
-            throw new CompilationError(
-              `Invalid value for option: close expected datetime / boolean found ${typeName(options.close)}`,
-            );
-          }
-        }
-
-        if (options.open) {
-          if (options.open instanceof DateTime) {
-            props.open = options.open;
-          } else {
-            throw new CompilationError(
-              `Invalid value for option: open expected datetime found ${typeName(options.open)}`,
-            );
-          }
-        }
-
-        if (!isNull(options.clear)) {
-          if (typeof options.clear === "boolean") {
-            props.clear = options.clear;
-          } else {
-            throw new CompilationError(
-              `Invalid value for option: clear expected boolean found ${typeName(options.open)}`,
-            );
-          }
-        }
-
-        this.table = this.table.update(props);
-      }
-    }
-
     if (!node) {
       return null;
     }
@@ -625,14 +585,14 @@ export class Compiler {
         // }
         return null;
       } else {
-        throw new CompilationError(`Unsupported sub query: ${typeName(query)}`);
+        throw new CompilationError(`Unsupported sub query: ${typeName(query)}`, query);
       }
     }
     // Table Reference
     if (node.from instanceof TableExpression) {
       this.table = node.from.table;
       if (!this.table) {
-        throw new CompilationError(`table "${node.from.table}" does not exist`);
+        throw new CompilationError(`table "${node.from.table}" does not exist`, node.from);
       }
 
       if (node.from.alias) {
@@ -649,7 +609,7 @@ export class Compiler {
       const expr = this.compileExpression(node.from);
       // Check that the FROM clause does not contain aggregates.
       if (expr && isAggregate(expr)) {
-        throw new CompilationError("aggregates are not allowed in FROM clause");
+        throw new CompilationError("aggregates are not allowed in FROM clause", node.from);
       }
       return expr;
     }
@@ -660,14 +620,14 @@ export class Compiler {
     const column = this.table.getColumn(node.column);
     if (!column) {
       throw new CompilationError(
-        `column "${node.column}" not found in table "${this.table.name}"`,
+        `column "${node.column}" not found in table "${this.table.name}"`, node
       );
     }
 
     const dType = structureFor(column.type);
     if (!dType) {
       throw new CompilationError(
-        `wildcard column is not structured: ${typeName(dType ?? column.type)}`,
+        `wildcard column is not structured: ${typeName(dType ?? column.type)}`, node
       );
     }
 
@@ -730,7 +690,7 @@ export class Compiler {
         return column;
       } else {
         throw new CompilationError(
-          `column "${node.column}" not found in table "${this.table.name}"`,
+          `column "${node.column}" not found in table "${this.table.name}"`, node
         );
       }
     } else if (node instanceof BooleanExpression) {
@@ -756,6 +716,7 @@ export class Compiler {
                 } else {
                   throw new CompilationError(
                     `syntax error at or near: ${node.args[i]}`,
+                    node.args[i]
                   );
                 }
               }
@@ -765,7 +726,7 @@ export class Compiler {
           if (query) {
             if (query.targets.filter((it) => it.name).length !== 1) {
               throw new CompilationError(
-                `subquery must return only one column\n${node.args[i]}`,
+                `subquery must return only one column\n${node.args[i]}`, node.args[i]
               );
             }
 
@@ -783,7 +744,7 @@ export class Compiler {
               return new EvalConstant(false, Boolean);
             }
             throw new CompilationError(
-              `argument of NOT must be type boolean, not type ${typeName(args[0].type)}\n${node.args[0]}`,
+              `argument of NOT must be type boolean, not type ${typeName(args[0].type)}\n${node.args[0]}`, node.args[0]
             );
           }
         }
@@ -867,13 +828,13 @@ export class Compiler {
       let right = this.compileExpression(node.right);
       if (right instanceof EvalQuery) {
         if (right.targets.filter((it) => it.name).length !== 1) {
-          throw new CompilationError("subquery has too many columns");
+          throw new CompilationError("subquery has too many columns", node.right);
         }
         right = new EvalConstantSubquery1D(right);
       }
       let rightType = right.type;
       if (!(Array.isArray(rightType) || right.type === Set)) {
-        throw new CompilationError(`not a list or set but ${typeName(right)}`);
+        throw new CompilationError(`not a list or set but ${typeName(right)}`, node.right);
       }
       if (Array.isArray(rightType)) {
         rightType = rightType[0];
@@ -915,7 +876,7 @@ export class Compiler {
         .flat();
       if (invalid.length) {
         throw new CompilationError(
-          `invalid input syntax for type(${typeName(operands[0].type)}): ${invalid.join(", ")}`,
+          `invalid input syntax for type(${typeName(operands[0].type)}): ${invalid.join(", ")}`, node
         );
       }
       return new EvalCollection(operands);
@@ -925,7 +886,7 @@ export class Compiler {
         then: this.compileExpression(it.then),
       }));
       if (!operands.length) {
-        throw new CompilationError(`Invalid case expression\n${node}`);
+        throw new CompilationError(`Invalid case expression\n${node}`, node);
       }
       const fallback = node.fallback
         ? this.compileExpression(node.fallback)
@@ -934,11 +895,11 @@ export class Compiler {
       operands.forEach((op, index) => {
         if (op.when.type !== Boolean) {
           throw new CompilationError(
-            `invalid input syntax for type boolean\n"${node.conditions[index].when}"`,
+            `invalid input syntax for type boolean\n"${node.conditions[index].when}"`, node,
           );
         } else if (op.then.type !== type) {
           throw new CompilationError(
-            `invalid input syntax for type ${typeName(type)}\n"${node.conditions[index].then}"`,
+            `invalid input syntax for type ${typeName(type)}\n"${node.conditions[index].then}"`, node
           );
         }
       });
@@ -962,20 +923,19 @@ export class Compiler {
     if (node.name === "coalesce") {
       if (operands.some((it) => it.type !== operands[0].type)) {
         throw new CompilationError(
-          `coalesce() function arguments must have uniform type, found: ${operands.map((it) => typeName(it.type)).join(", ")}`,
+          `coalesce() function arguments must have uniform type, found: ${operands.map((it) => typeName(it.type)).join(", ")}`, node
         );
       }
       return new EvalCoalesce(operands);
     }
 
-    const ctx = this.contexts[this.contexts.length - 1] ?? this.context;
     const fn = findFunction(node.name, operands);
     if (!fn) {
       if (operands.some((it) => it.type === NULL)) {
         return new EvalConstant(null);
       }
       throw new CompilationError(
-        `no function matches "${node.name}(${operands.map((it) => typeName(it.type)).join(", ")})" name and argument type`,
+        `no function matches "${node.name}(${operands.map((it) => typeName(it.type)).join(", ")})" name and argument type`, node
       );
     }
 
@@ -1033,16 +993,8 @@ export class Compiler {
       );
     }
 
-    const execFn = fn.create(ctx, ...operands) as EvalFunction;
+    const execFn = fn.create(this.context, ...operands) as EvalFunction;
     const window = this.compileOverExpression(node.window);
-
-    if (!execFn.pure && ctx instanceof EvalNode) {
-      if (!fn.matches([ctx])) {
-        throw new CompilationError(
-          `invalid function for type: ${typeName(ctx.type)} ".${node.name}(${operands.map((it) => typeName(it.type)).join(", ")})"`,
-        );
-      }
-    }
 
     if (operands.every((it) => it instanceof EvalConstant) && execFn.pure) {
       return new EvalConstant(execFn.resolve(), execFn.type);
@@ -1053,13 +1005,13 @@ export class Compiler {
         const expr = this.compileExpression(node.filter);
         if (isAggregate(expr)) {
           throw new CompilationError(
-            `FILTER expressions may not be aggregates: ${node.filter}`,
+            `FILTER expressions may not be aggregates: ${node.filter}`, node.filter
           );
         }
         execFn.filter = expr;
       } else {
         throw new CompilationError(
-          `Filter functions can only operate on aggregate functions`,
+          `Filter functions can only operate on aggregate functions`, node.filter
         );
       }
     }
@@ -1069,7 +1021,7 @@ export class Compiler {
         execFn.distinct = true;
       } else {
         throw new CompilationError(
-          `DISTINCT specified, but ${node.name} is not an aggregate function`,
+          `DISTINCT specified, but ${node.name} is not an aggregate function`, node
         );
       }
     }
@@ -1079,7 +1031,7 @@ export class Compiler {
         return new EvalWindow(execFn, window);
       } else {
         throw new CompilationError(
-          `window functions may only be used in aggregate functions: ${node}`,
+          `window functions may only be used in aggregate functions: ${node}`, node
         );
       }
     }
@@ -1111,7 +1063,7 @@ export class Compiler {
         index = column - 1;
         if (index >= size || index < 0) {
           throw new CompilationError(
-            `invalid PARTITION-BY column index ${column}`,
+            `invalid PARTITION-BY column index ${column}`, expr
           );
         }
       } else {
@@ -1164,7 +1116,7 @@ export class Compiler {
       if (typeof column === "number") {
         index = column - 1;
         if (index >= size || index < 0) {
-          throw new CompilationError(`invalid ORDER-BY column index ${column}`);
+          throw new CompilationError(`invalid ORDER-BY column index ${column}`, spec);
         }
       } else {
         if (column instanceof ColumnExpression) {
@@ -1214,14 +1166,14 @@ export class Compiler {
       if (typeof column === "number") {
         index = column - 1;
         if (index >= size || index < 0) {
-          throw new CompilationError(`invalid PIVOT-BY column index ${column}`);
+          throw new CompilationError(`invalid PIVOT-BY column index ${column}`, node);
         }
       } else {
         if (column instanceof ColumnExpression) {
           index = targetsNameMap[column.column];
           if (isNull(index)) {
             throw new CompilationError(
-              `PIVOT BY column ${column} is not in the targets list`,
+              `PIVOT BY column ${column} is not in the targets list`, column
             );
           }
         }
@@ -1229,7 +1181,7 @@ export class Compiler {
 
       if (isNull(index)) {
         throw new CompilationError(
-          `PIVOT BY column ${column} is not in the targets list`,
+          `PIVOT BY column ${column} is not in the targets list`, column instanceof Expression ? column : undefined
         );
       }
       indexes.push(index);
@@ -1237,12 +1189,12 @@ export class Compiler {
 
     if (indexes[0] === indexes[1]) {
       throw new CompilationError(
-        `the two PIVOT BY columns cannot be the same column'`,
+        `the two PIVOT BY columns cannot be the same column'`, node
       );
     }
     if (!groupIndexes.includes(indexes[1])) {
       throw new CompilationError(
-        "the second PIVOT BY column must be a GROUP BY column",
+        "the second PIVOT BY column must be a GROUP BY column", node
       );
     }
     return indexes;
@@ -1277,7 +1229,7 @@ export class Compiler {
           index = column - 1;
           if (index >= size || index < 0) {
             throw new CompilationError(
-              `invalid GROUP-BY column index ${column}`,
+              `invalid GROUP-BY column index ${column}`, node
             );
           }
         } else {
@@ -1288,7 +1240,7 @@ export class Compiler {
             const expr = this.compileExpression(column);
             if (isAggregate(expr)) {
               throw new CompilationError(
-                `GROUP-BY expressions may not be aggregates: ${column}`,
+                `GROUP-BY expressions may not be aggregates: ${column}`, column
               );
             }
             index = targetExpressions.findIndex((it) => it.isEqual(expr));
@@ -1303,13 +1255,13 @@ export class Compiler {
 
         if (isNull(index)) {
           throw new InternalError(
-            `Internal error, could not index group-by reference: ${column}`,
+            `Internal error, could not index group-by reference: ${column}`, column instanceof Expression ? column : undefined
           );
         }
         groupIndexes.push(index);
         if (isAggregate(allTargets[index].expression)) {
           throw new CompilationError(
-            `GROUP-BY expressions may not reference aggregates: ${column}`,
+            `GROUP-BY expressions may not reference aggregates: ${column}`, column instanceof Expression ? column : undefined
           );
         }
       });
@@ -1317,7 +1269,7 @@ export class Compiler {
         const expr = this.compileExpression(node.having);
         if (!isAggregate(expr)) {
           throw new CompilationError(
-            `the GROUP-BY HAVING clause must be an aggregate expression: ${node.having}`,
+            `the GROUP-BY HAVING clause must be an aggregate expression: ${node.having}`, node.having
           );
         }
         havingIndex = allTargets.length;
@@ -1370,32 +1322,30 @@ export class Compiler {
         }
       }
     }
-    const operand = this.compileExpression(node.operand);
+    if (node.name instanceof CastExpression) {
+      const fn = node.name.expr
+      if (fn instanceof FunctionExpression) {
+        return this.compileExpression(new FunctionExpression(fn.parseInfo, fn.name, [node.operand, ...fn.args], fn.distinct, fn.filter, fn.window)); 
+      }
+      throw new CompilationError(`Unsupported attribute expression: ${node.name}`, node.name);
+    } else if (node.name instanceof FunctionExpression ) {
+      const fn = node.name;
+      return this.compileExpression(new FunctionExpression(fn.parseInfo, fn.name, [node.operand, ...fn.args], fn.distinct, fn.filter, fn.window));
+    }
 
+    const operand = this.compileExpression(node.operand);
     const dType = structureFor(operand.type);
     if (dType) {
-      if (typeof node.name !== "string") {
-        this.contexts.push(operand);
-        const expr = this.compileExpression(node.name);
-        this.contexts.pop();
-        return expr;
-      }
       const getter = dType.columns.get(node.name);
       if (isNull(getter)) {
         throw new CompilationError(
-          `structured type has no attribute "${node.name}"`,
+          `structured type has no attribute "${node.name}"`, node
         );
       }
       return new EvalGetter(operand, getter, getter.type);
-    } else if (typeof node.name !== "string") {
-      this.contexts.push(operand);
-      const expr = this.compileExpression(node.name);
-      this.contexts.pop();
-      return expr;
     }
-
     throw new CompilationError(
-      `column is not structured: ${typeName(dType ?? operand.type)}`,
+      `column is not structured: ${typeName(dType ?? operand.type)}`, node
     );
   }
 
@@ -1405,7 +1355,7 @@ export class Compiler {
       return new EvalGetItem(operand, node.key);
     }
     throw new CompilationError(
-      `column '${node.key}'::${typeName(operand.type)} type is not subscriptable:`,
+      `column '${node.key}'::${typeName(operand.type)} type is not subscriptable:`, node
     );
   }
 
@@ -1417,7 +1367,7 @@ export class Compiler {
       if (type) {
         columns.push({ name: col.name, type: col.array ? [type] : type });
       } else {
-        throw new CompilationError(`unrecognized type "${col.type}"`);
+        throw new CompilationError(`unrecognized type "${col.type}"`, node);
       }
     });
     if (!node.columns.length && query) {
@@ -1439,7 +1389,7 @@ export class Compiler {
   compileInsert(node: InsertExpression) {
     const table = this.context.tables.get(node.table);
     if (!table) {
-      throw new CompilationError(`table "${node.table}" does not exist`);
+      throw new CompilationError(`table "${node.table}" does not exist`, node);
     }
 
     const columns = node.columns.length
@@ -1448,7 +1398,7 @@ export class Compiler {
     const row = node.values.find((it) => it.length != columns.length);
     if (row) {
       throw new CompilationError(
-        `column names and values mismatch: expected ${columns.length} value(s) but got ${row.length}\n${row.toString()}`,
+        `column names and values mismatch: expected ${columns.length} value(s) but got ${row.length}\n${row.toString()}`, node
       );
     }
 
@@ -1466,7 +1416,7 @@ export class Compiler {
       columns.forEach((column, i) => {
         if (isNull(row[column])) {
           throw new CompilationError(
-            `column "${column}" not found in table "${node.table}"`,
+            `column "${column}" not found in table "${node.table}"`, rowValues[i]
           );
         }
         const expr = this.compileExpression(rowValues[i]);

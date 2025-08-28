@@ -1,3 +1,5 @@
+import { Expression } from "./parser";
+
 interface ErrorOptions {
   cause?: unknown;
 }
@@ -66,6 +68,7 @@ export class IntegrityError extends Error {
 export class InternalError extends Error {
   constructor(
     message: string,
+    readonly expression?: Expression,
     readonly options?: ErrorOptions,
   ) {
     super(message);
@@ -95,9 +98,20 @@ export class NotSupportedError extends Error {
 export class CompilationError extends Error {
   constructor(
     message: string,
+    readonly expression?: Expression,
     readonly options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
+  }
+}
+
+export class StatementError extends Error {
+  constructor(
+    message: string,
+    readonly errors: Error[],
+    readonly options?: ErrorOptions,
+  ) {
+    super(message, options);
   }
 }
 
