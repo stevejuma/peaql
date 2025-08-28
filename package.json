@@ -17,7 +17,7 @@
     "test:run": "vitest run",
     "fmt": "prettier ./ --write",
     "check": "npm run lint && npm run check-types && npm run test:run",
-    "lib:publish": "npm run check && npm run build && npm version patch -m \"chore: bump version to %s\" && git push --follow-tags"
+    "tag": "npm run check && npm run build && npm version patch -m \"chore: bump version to %s\" && git push --follow-tags"
   },
   "exports": {
     "import": "./dist/index.js"
