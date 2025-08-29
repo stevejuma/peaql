@@ -80,6 +80,13 @@ import {
   end,
   array,
   cast,
+  exists,
+  _if,
+  constraint,
+  foreign,
+  references,
+  unique,
+  check,
 } from "./bql.grammar.terms";
 
 const keywordMap = {
@@ -162,6 +169,12 @@ const keywordMap = {
   end,
   array,
   cast,
+  constraint,
+  if: _if,
+  foreign,
+  references,
+  unique,
+  check,
 };
 const newline = 10,
   carriage = 13,
@@ -194,6 +207,14 @@ export function keywords(name) {
 export const properties = new ExternalTokenizer((input) => {
   const [before] = readIdentifier(input, -1, -1);
   const [after, offset] = readIdentifier(input, 0, 1);
+
+  if (
+    ["NOT"].includes(before.toUpperCase()) &&
+    after.toUpperCase() === "EXISTS"
+  ) {
+    return input.acceptToken(exists, offset);
+  }
+
   if (
     ["SELECT", "UNION", "EXCEPT", "INTERSECT"].includes(before.toUpperCase()) &&
     after.toUpperCase() === "ALL"

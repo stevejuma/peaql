@@ -13,6 +13,9 @@ import {
   Operation,
   iterableProduct,
   NULL,
+  typeFor,
+  typeCast,
+  isSameType,
 } from "./types";
 import { executeSelect } from "./query_execute";
 import {
@@ -21,9 +24,9 @@ import {
   NotSupportedError,
   ProgrammingError,
 } from "../errors";
-import { Expression, Op, OverExpression } from "../parser/ast";
+import { CheckConstraint, CreateTableExpression, Expression, InsertExpression, Op, OverExpression } from "../parser/ast";
 import { Table } from "./models";
-import { Compiler, getColumnsAndAggregates, isAggregate } from "./compiler";
+import { getColumnsAndAggregates } from "./compiler";
 import { Context } from "./context";
 
 export type Constant = number | string | boolean | null | DateTime | Duration;
@@ -243,6 +246,7 @@ export class EvalColumn extends EvalNode {
 
 export class EvalInsert extends EvalNode {
   constructor(
+    readonly node: InsertExpression,
     readonly table: Table,
     readonly values: Record<string, EvalNode>[],
   ) {
@@ -253,7 +257,7 @@ export class EvalInsert extends EvalNode {
     return this.values.map((it) => Object.values(it)).flat();
   }
 
-  resolve(context?: any):  [{ name: symbol; type: DType }[], unknown[][]]  {
+  resolve(context?: any): [{ name: symbol; type: DType }[], unknown[][]] {
     const columns: Record<string, DType> = {};
     const rows: Array<Array<unknown>> = [];
     this.values.forEach((item) => {
@@ -262,14 +266,39 @@ export class EvalInsert extends EvalNode {
       for (const [key, value] of Object.entries(item)) {
         columns[key] ||= this.table.getColumn(key).type;
         row[key] = value.resolve(context);
+        const type = typeOf(row[key])
+        if (!isSameType(type, columns[key]) && type !== NULL) {
+          const coerced = typeCast(row[key], columns[key]);
+          if (!isSameType(typeOf(coerced), columns[key])) {
+            throw new CompilationError(`invalid input syntax for type ${typeName(columns[key])}: ${JSON.stringify(row[key])}`, this.node);
+          }
+        }
         record.push(row[key]);
       }
+
+      for (const [key, value] of this.table.columnConstraints.entries()) {
+        if (key in row) {
+          if (!value.resolve(row)) {
+            throw new CompilationError(`Failing row contains (${record.join(', ')}). new row for relation "${this.table.name}" violates check constraint "${this.table.name}_${key}_check"`);
+          }
+        }
+      }
+
+      for (const [key, value] of this.table.tableConstraints.entries()) {
+        if (!value.resolve(row)) {
+            throw new CompilationError(`Failing row contains (${record.join(', ')}). new row for relation "${this.table.name}" violates check constraint "${key}"`);
+        }
+      }
+
       rows.push(record);
       this.table.props.data.push(row);
     });
 
-    const keys = Object.keys(columns).map(k => Symbol(k))
-    return [keys.map(name => ({name, type: columns[name.description]})), rows]
+    const keys = Object.keys(columns).map((k) => Symbol(k));
+    return [
+      keys.map((name) => ({ name, type: columns[name.description] })),
+      rows,
+    ];
   }
 
   isEqual(obj: any): boolean {
@@ -1057,24 +1086,30 @@ export class EvalConstantSubqueryValue extends EvalNode {
 }
 
 export class EvalStatements extends EvalNode {
-  constructor(readonly context: Context, readonly compiler: Compiler, readonly statements: Expression[]) {
-    super(EvalStatements)
+  constructor(
+    readonly context: Context,
+    readonly statements: Expression[],
+  ) {
+    super(EvalStatements);
   }
 
   resolve(context?: any) {
     let response: any;
     for (const statement of this.statements) {
-       const expr = this.compiler.compileExpression(statement);
-       response = expr.resolve(context);
+      const expr = this.context.compiler.compileExpression(statement);
+      response = expr.resolve(context);
     }
     return response;
   }
 
   isEqual(obj: any): boolean {
-    if (!(obj instanceof EvalStatements) || this.statements.length !== obj.statements.length) {
+    if (
+      !(obj instanceof EvalStatements) ||
+      this.statements.length !== obj.statements.length
+    ) {
       return false;
     }
-    for (let i=0; i<this.statements.length; i++) {
+    for (let i = 0; i < this.statements.length; i++) {
       if (!isEqual(this.statements[i], obj.statements[i])) {
         return false;
       }
@@ -1085,7 +1120,6 @@ export class EvalStatements extends EvalNode {
   get childNodes(): EvalNode[] {
     return [];
   }
-  
 }
 
 export class EvalQuery extends EvalNode {
@@ -1267,14 +1301,44 @@ export function typedTupleToColumns(
 }
 
 export class EvalCreateTable extends EvalNode {
+  private table: Table;
   constructor(
     readonly context: Context,
-    readonly name: string,
-    readonly columns: Array<{ name: symbol; type: DType }>,
-    readonly using: string = "",
+    readonly node: CreateTableExpression,
+    readonly columns: Array<{ name: symbol; type: DType; }>,
     readonly data?: EvalQuery,
   ) {
     super(EvalCreateTable);
+    const cols = this.columns.map(
+      (it) => new AttributeColumn(it.name.description, it.type),
+    );
+    this.table = Table.create(this.node.name, ...cols);
+    context.compiler.stack.push(this.table);
+    for (const column of node.columns) {
+      if (column.check) {
+        const expr = context.compiler.compileExpression(column.check);
+        if (expr.type !== Boolean) {
+          throw new CompilationError(
+            `argument of CHECK must be type boolean, not type ${typeName(expr.type)}`,
+            node,
+          );
+        }
+        this.table.columnConstraints.set(column.name, expr)
+      }
+    }
+    for (const constraint of node.constraints) {
+      if (constraint instanceof CheckConstraint) {
+        const expr = context.compiler.compileExpression(constraint.expression); 
+        if (expr.type !== Boolean) {
+          throw new CompilationError(
+            `argument of CHECK must be type boolean, not type ${typeName(expr.type)}`,
+            node,
+          );
+        }
+        this.table.tableConstraints.set(constraint.constraintName(), expr);
+      }
+    }
+    context.compiler.stack.pop();
   }
 
   get childNodes(): EvalNode[] {
@@ -1282,17 +1346,14 @@ export class EvalCreateTable extends EvalNode {
   }
 
   resolve(context?: any): [{ name: symbol; type: DType }[], unknown[][]] {
-    const columns = this.columns.map(
-      (it) => new AttributeColumn(it.name.description, it.type),
-    );
-    let table = Table.create(this.name, ...columns);
+ 
     const data: unknown[][] = [];
     if (this.data) {
       const [_, queryData] = this.data.resolve(context);
-      table = table.data(queryData);
+      this.table = this.table.data(queryData);
       data.push(...queryData);
     }
-    this.context.withTables(table);
+    this.context.withTables(this.table);
     return [this.columns, data];
   }
 
@@ -1301,8 +1362,8 @@ export class EvalCreateTable extends EvalNode {
       return false;
     }
     return (
-      this.name === obj.name &&
-      this.using == obj.using &&
+      this.node.name === obj.node.name &&
+      this.node.using == obj.node.using &&
       isEqual(this.data, obj.data)
     );
   }

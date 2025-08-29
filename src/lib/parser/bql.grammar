@@ -522,10 +522,11 @@ Boolean {
 Null { null }
 
 CreateTable {
-    create table
+    create table 
+    NotExists { if not exists }?
     Identifier
     (
-        (Columns { '('  ColumnType ("," ColumnType)*  ')' } Using ?) |
+        (Columns { '('  (ColumnType | Constraint) ("," (ColumnType | Constraint))*  ')' } Using ?) |
         Using |
         As {
             as Statement
@@ -533,14 +534,33 @@ CreateTable {
     )
 }
 
+Check { check "(" expr ")" }
+
+Constraint {
+    constraint Identifier?
+    (
+        PrimaryKey { primary key "(" (Identifier  ("," Identifier)* )")"} | 
+        Unique { unique  "(" (Identifier  ("," Identifier)* )")" } |
+        Check |
+        ForeignKey { 
+          foreign  key 
+          SourceColumns { "(" (Identifier  ("," Identifier)* )")" }
+          references
+          TargetTable { Identifier }
+          TargetColumns { "(" (Identifier  ("," Identifier)* )")" }
+        }
+    )
+}
+
 ColumnType {
     Identifier
-    Type { Identifier }
+    Type { Identifier | keyword }
     Size { "(" Integer ")"}?
     Array { "[]" }?
     Options {
-        (primary key)?
+        (primary key)? (not null)?
     }
+    Check? 
 }
 
 Insert {
@@ -578,10 +598,10 @@ keyword {
     time | zone | true | false | create | table |
     insert | into | values | current | on |
     case | when | then | else | end | union  | except | intersect |
-    primary | key | array | cast
+    primary | key | array | cast | if | constraint  | foreign | references | unique | check
 }
 
-@external tokens properties from "./tokens" { all }
+@external tokens properties from "./tokens" { all, exists }
 
 @external specialize {identifier} keywords from "./tokens" {
     null
@@ -602,7 +622,7 @@ keyword {
     time, zone, true, false, create, table,
     insert, into, values, current, on,
     case, when, then, else, end , union, except, intersect,
-    primary, key, array, cast 
+    primary, key, array, cast, if, constraint, foreign, references, unique, check
 }
 
 Identifier {

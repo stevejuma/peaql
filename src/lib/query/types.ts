@@ -42,10 +42,20 @@ export class TypeDef {
     readonly name: string,
     readonly props: Partial<{
       isType: (obj: any) => boolean;
+      cast: (obj: any) => any
       extensions: Function[];
     }> = {},
   ) {
     (props.extensions || []).forEach((it) => this.extensions.add(it));
+  }
+
+  public cast(obj: any) {
+    if (this.isInstanceOf(obj)) {
+      return obj;
+    }
+    if (this.props.cast) {
+      return this.props.cast(obj)
+    }
   }
 
   public toString() {
@@ -96,6 +106,7 @@ export function registerType(
   props: Partial<{
     isType: (obj: any) => boolean;
     aliases: string[];
+    cast: (obj: any) => any;
     extensions: Function[];
   }> = {},
 ) {
@@ -154,6 +165,11 @@ registerType(String, "string", {
 });
 registerType(DateTime, "datetime", {
   aliases: ["date", "timestamp", "timestampz"],
+  cast: (obj) => {
+    if (typeof obj === "string") {
+      return DateTime.fromISO(obj);
+    }
+  }
 });
 registerType(Duration, "duration");
 registerType(VARARG, "vararg");
@@ -184,6 +200,12 @@ function _typeOf(value: unknown): DType {
   return (
     [...TYPES.values()].find((it) => it.isInstanceOf(value))?.type ?? Object
   );
+}
+
+export function typeCast(value: unknown, type?: DType) {
+  type ||= typeOf(value)
+  const typeDef = [...TYPES.values()].find(it => it.type === type);
+  return typeDef?.cast(value)
 }
 
 export function typeOf(value: unknown): DType {

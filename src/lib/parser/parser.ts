@@ -34,6 +34,13 @@ import {
   CollectionExpression,
   CastExpression,
   StatementExpression,
+  CreateTableColumnDefinition,
+  Constraint,
+  PrimaryKeyConstraint,
+  UniqueConstraint,
+  ForeignKeyConstraint,
+  CheckConstraint,
+  ColumnDefinition,
 } from "./ast";
 import { parser } from "./bql.grammar";
 import { SyntaxNode, Tree, type SyntaxNodeRef } from "@lezer/common";
@@ -282,14 +289,18 @@ export class Parser {
   ): ParseError {
     return new ParseError(message, {
       node: node.toString(),
-      position: {from: node.from, to: node.to},
+      position: { from: node.from, to: node.to },
       content: this.content(node),
       cause,
     });
   }
 
   private isRootExpression(expr: Expression) {
-    return (expr instanceof Query) || (expr instanceof CreateTableExpression) || (expr instanceof InsertExpression);
+    return (
+      expr instanceof Query ||
+      expr instanceof CreateTableExpression ||
+      expr instanceof InsertExpression
+    );
   }
 
   #query: Expression;
@@ -690,21 +701,86 @@ export class Parser {
         this.top.values.push(expressions);
       }
     } else if (node.name === "CreateTable") {
-      const columns = (
-        node.node.getChild("Columns")?.getChildren("ColumnType") ?? []
-      ).map((it) => ({
-        name: this.content(it.getChild("Identifier")),
-        type: this.content(it.getChild("Type")),
-        array: it.getChild("Array") ? true : false,
-      }));
+      const tableName = this.content(node.node.getChild("Identifier"));
+      const columns: ColumnDefinition[] = [];
+      const constraints: Constraint[] = [];
+      let child = node.node.getChild("Columns").lastChild;
+      while (child) {
+        if (child.name === "ColumnType") {
+          const type = this.content(child.getChild("Type"));
+          const options = this.content(child.getChild("Options")).trim().replaceAll(/\s+/g, " ").toUpperCase()
+          columns.push(
+            new ColumnDefinition(
+              this.content(child.getChild("Identifier")),
+              type,
+              child.getChild("Array") ? true : false, 
+              options.includes("PRIMARY KEY"),
+              options.includes("NOT NULL"),
+              child.getChild("Check") ? this.stack.pop() : undefined,
+            ),
+          );
+        } else if (child.name === "Constraint") {
+          let type = child.firstChild;
+          let name = "";
+          if (type.name === "Identifier") {
+             name = this.content(type);
+             type = type.nextSibling;
+          }
+          if (type.name === "PrimaryKey") {
+            constraints.push(
+              new PrimaryKeyConstraint(
+                tableName,
+                type.getChildren("Identifier").map((it) => this.content(it)),
+                name,
+              ),
+            );
+          } else if (type.name === "Unique") {
+            constraints.push(
+              new UniqueConstraint(
+                tableName,
+                type.getChildren("Identifier").map((it) => this.content(it)),
+                name,
+              ),
+            );
+          } else if (type.name === "ForeignKey") {
+            constraints.push(
+              new ForeignKeyConstraint(
+                tableName,
+                (
+                  type.getChild("SourceColumns")?.getChildren("Identifier") ??
+                  []
+                ).map((it) => this.content(it)),
+                (
+                  type.getChild("TargetColumns")?.getChildren("Identifier") ??
+                  []
+                ).map((it) => this.content(it)),
+                this.content(type.getChild("TargetTable")),
+                name,
+              ),
+            );
+          } else if (type.name === "Check") {
+            constraints.push(
+              new CheckConstraint(
+                tableName,
+                this.stack.pop(),
+                name,
+              ),
+            );
+          }
+        }
+        child = child.prevSibling;
+      }
+
       const query: Query = node.node.getChild("As")
         ? (this.stack.pop() as Query)
         : undefined;
       const expr = new CreateTableExpression(
         parseInfo,
-        this.content(node.node.getChild("Identifier")),
-        columns,
+        tableName,
+        node.node.getChild("NotExists") ? true : false,
+        columns.reverse(),
         this.content(node.node.getChild("Using")),
+        constraints.reverse(),
         query,
       );
       this.stack.push(expr);

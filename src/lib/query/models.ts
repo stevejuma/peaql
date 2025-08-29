@@ -74,8 +74,11 @@ export function EntityTable<T extends { new (...args: any[]): any }>(Base: T) {
   };
 }
 
+
 export class Table {
   readonly columns = new Map<string, EvalNode>();
+  readonly columnConstraints = new Map<string, EvalNode>();
+  readonly tableConstraints = new Map<string, EvalNode>();
   readonly joins = new Map<string, Table>();
   public static dataType: DType = Object;
 

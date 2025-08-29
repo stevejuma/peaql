@@ -2,9 +2,8 @@ import {
   parseQuery,
   LiteralExpression,
   Expression,
-  CreateTableExpression,
-  InsertExpression,
   StatementExpression,
+  TableModificationExpression,
 } from "../parser";
 import { Compiler, CompilerOptions } from "./compiler";
 import { Table } from "./models";
@@ -24,6 +23,7 @@ export class Context {
   readonly tables = new Map<string, Table>();
   readonly settings: Record<string, Constant | Array<Constant>> = {};
   readonly compilerOptions: Partial<CompilerOptions> = {};
+  compiler!: Compiler;
 
   constructor(
     readonly errors: Error[] = [],
@@ -89,8 +89,12 @@ export class Context {
     };
   }
 
-  private isDDL(expr: Expression) {
-    return expr instanceof CreateTableExpression || expr instanceof InsertExpression || (expr instanceof StatementExpression && expr.statements.some(this.isDDL));
+  public isTableModification(expr: Expression) {
+    return (
+      expr instanceof TableModificationExpression ||
+      (expr instanceof StatementExpression &&
+        expr.statements.some(this.isTableModification))
+    );
   }
 
   compile(
@@ -103,15 +107,10 @@ export class Context {
     }
 
     if (statement.errors.length) {
-      throw new StatementError(
-        'Error processing statement',
-        statement 
-      );
+      throw new StatementError("Error processing statement", statement);
     }
 
-    if (
-      this.isDDL(statement.expr)
-    ) {
+    if (this.isTableModification(statement.expr)) {
       return new Compiler(this, options ?? this.compilerOptions).compile(
         statement.expr,
         parameters,

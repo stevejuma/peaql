@@ -1,5 +1,5 @@
 import { DateTime, Duration } from "luxon";
-import { isNull } from "../query/types";
+import { DType, isNull } from "../query/types";
 
 export type Op =
   | ">"
@@ -407,27 +407,134 @@ export class AnyExpression extends Expression {
 }
 
 export class StatementExpression extends Expression {
-   constructor(
-    readonly statements: Expression[]
-  ) {
+  constructor(readonly statements: Expression[]) {
     super(statements[0].parseInfo);
   }
 
   toString() {
-    return this.statements.map(statement => statement.toString()).join(";\n");
+    return this.statements.map((statement) => statement.toString()).join(";\n");
   }
 
   children(): Expression[] {
-    return this.statements.map(it => it.children()).flat()
+    return this.statements.map((it) => it.children()).flat();
   }
 }
 
-export class CreateTableExpression extends Expression {
+export abstract class TableModificationExpression extends Expression {}
+
+
+export class ColumnDefinition {
+
+  constructor(
+    readonly name: string,
+    readonly type: string,
+    readonly isArray: boolean,
+    readonly primaryKey: boolean,
+    readonly isNotNull: boolean,
+    readonly check?: Expression,
+  ) {
+  }
+
+  toString() {
+    return `${this.name} ${this.type}${this.isArray ? "[]" : ""} ${this.isNotNull ? "NOT NULL" : ""}`.trim();
+  }
+}
+
+export abstract class Constraint {
+  constructor(
+    readonly table: string,
+    readonly type: string,
+    readonly name: string = "",
+  ) {}
+
+  constraintName(): string {
+    return this.name;
+  }
+}
+
+export class PrimaryKeyConstraint extends Constraint {
+  constructor(
+    readonly table: string,
+    readonly columns: Array<string>,
+    name: string = "",
+  ) {
+    super(table, "PRIMARY KEY", name);
+  }
+
+  toString() {
+    return `CONSTRAINT${this.name ? this.name : " "}PRIMARY KEY (${this.columns.join(", ")})`.trim();
+  }
+
+  constraintName(): string {
+      return this.name || this.table + "_" + this.columns.join("_").toLowerCase() + "_pkey";
+  }
+}
+
+export class ForeignKeyConstraint extends Constraint {
+  constructor(
+    readonly table: string,
+    readonly columns: Array<string>,
+    readonly referenceColumns: Array<string>,
+    readonly referenceTable: string,
+    name: string = "",
+  ) {
+    super(table, "FOREIGN KEY", name);
+  }
+
+  toString() {
+    return `CONSTRAINT${this.name ? this.name : " "}FOREIGN KEY (${this.columns.join(", ")}) REFERENCES ${this.referenceTable}(${this.referenceColumns.join(", ")})`.trim();
+  }
+
+  constraintName(): string {
+    return this.name || this.table + "_" + this.columns.join("_").toLowerCase() + "_fkey";
+  }
+}
+
+export class UniqueConstraint extends Constraint {
+  constructor(
+    readonly table: string,
+    readonly columns: Array<string>,
+    name: string = "",
+  ) {
+    super(table, "UNIQUE", name);
+  }
+
+  toString() {
+    return `CONSTRAINT${this.name ? this.name : " "}UNIQUE (${this.columns.join(", ")})`.trim();
+  }
+
+  constraintName(): string {
+    return this.name || this.table + "_" + this.columns.join("_").toLowerCase() + "_uk";
+  }
+}
+
+export class CheckConstraint extends Constraint {
+  constructor(
+    readonly table: string,
+    readonly expression: Expression,
+    name: string = "",
+  ) {
+    super(table, "CHECK", name);
+  }
+
+  toString() {
+    return `CONSTRAINT${this.name ? this.name : " "}CHECK (${this.expression})`.trim();
+  }
+
+  constraintName(): string {
+    const columns = this.expression.children().filter(it => it instanceof ColumnExpression).map(it => it.column);
+    return this.name ||  this.table + "_" + columns.join("_") + "_check";
+  }
+}
+
+export class CreateTableExpression extends TableModificationExpression {
   constructor(
     parseInfo: ParseInfo,
     readonly name: string,
-    readonly columns: Array<{ name: string; type: string; array: boolean }>,
+    readonly ifNotExists: boolean,
+    readonly columns: Array<ColumnDefinition>,
     readonly using: string,
+    readonly constraints: Constraint[],
     readonly query?: Query,
   ) {
     super(parseInfo);
@@ -437,7 +544,7 @@ export class CreateTableExpression extends Expression {
     if (this.query) {
       return `CREATE TABLE ${this.name} AS ${this.query}`;
     }
-    return `CREATE TABLE ${this.name}(\n  ${this.columns.map((it) => `${it.name} ${it.type}${it.array ? "[]" : ""}`).join("  \n")}\n)${this.using ? `"${this.using}"` : ""}`;
+    return `CREATE TABLE ${this.name}(\n  ${this.columns.map((it) => it.toString()).join("  \n")}\n)${this.using ? `"${this.using}"` : ""}`;
   }
 
   children(): Expression[] {
@@ -445,7 +552,7 @@ export class CreateTableExpression extends Expression {
   }
 }
 
-export class InsertExpression extends Expression {
+export class InsertExpression extends TableModificationExpression {
   constructor(
     parseInfo: ParseInfo,
     readonly table: string,

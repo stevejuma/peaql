@@ -4,6 +4,65 @@ import { AttributeColumn } from "./nodes";
 import { Table } from "./models";
 import { INTEGER, normalizeColumns } from "./types";
 
+describe("Create table", () => {
+
+  test("Creates timestamp", () => {
+    const context = new Context();
+     context.execute(`
+        CREATE TABLE t1(a timestamp); 
+        INSERT INTO t1(a) VALUES('2022-07-17');
+      `);
+  });
+
+  test("Fails when creating table that exists", () => {
+    const context = new Context();
+    expect(() => {
+      context.execute(`
+        CREATE TABLE t1(a STRING, b INTEGER);
+        CREATE TABLE t1(a STRING, b INTEGER);
+      `);
+    }).toThrow('relation "t1" already exists');
+  });
+
+  test("Does not create a table if it exists", () => {
+    const context = new Context();
+    context.execute(`
+        CREATE TABLE t1(a STRING, b INTEGER);
+        CREATE TABLE IF NOT EXISTS t1(a STRING, b INTEGER);
+      `);
+  });
+
+  test("Fails when inserting wrong type", () => {
+    const context = new Context();
+    expect(() => {
+      context.execute(`
+          CREATE TABLE t1(a STRING, b INTEGER);
+          INSERT INTO t1(a,b) VALUES(55, 'a');
+      `);
+    }).toThrow("invalid input syntax for type string: 55")
+  });
+
+  test("Evaluates table constraints on insert", () => {
+    const context = new Context();
+    expect(() => {
+      context.execute(`
+          CREATE TABLE t1(a STRING, b INTEGER, constraint CHECK(b > 100));
+          INSERT INTO t1(a,b) VALUES('a', 55);
+      `);
+    }).toThrow(`Failing row contains (a, 55). new row for relation "t1" violates check constraint "t1_b_check"`)
+  });
+
+  test("Evaluates column constraints on insert", () => {
+    const context = new Context();
+    expect(() => {
+      context.execute(`
+          CREATE TABLE t1(a STRING CHECK(b > 100), b INTEGER);
+          INSERT INTO t1(a,b) VALUES('a', 55);
+      `);
+    }).toThrow(`Failing row contains (a, 55). new row for relation "t1" violates check constraint "t1_a_check"`)
+  });
+});
+
 describe("Simple Queries", () => {
   const context = new Context().withDefaultTable("postings").withTables(
     Table.create(
@@ -29,9 +88,11 @@ describe("Simple Queries", () => {
       { name: "a", type: String },
       { name: "b", type: INTEGER },
     ]);
-    expect(data).toEqual([["peter", 1], ["pan", 2]]);
+    expect(data).toEqual([
+      ["peter", 1],
+      ["pan", 2],
+    ]);
   });
-
 
   test("SELECT sum(a)", () => {
     const [columns, data] = context.execute(`SELECT sum(a).toFixed(1) total`);

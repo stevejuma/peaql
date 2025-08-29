@@ -96,6 +96,7 @@ export class Compiler {
     readonly context: Context,
     options: Partial<CompilerOptions> = {},
   ) {
+    this.context.compiler = this;
     this.options = { ...COMPILER_OPTIONS, ...options };
   }
 
@@ -959,7 +960,7 @@ export class Compiler {
         new FunctionExpression(node.parseInfo, node.type, [node.expr]),
       );
     } else if (node instanceof StatementExpression) {
-      return new EvalStatements(this.context, this, node.statements);
+      return new EvalStatements(this.context, node.statements);
     }
 
     throw new NotSupportedError(
@@ -1458,10 +1459,19 @@ export class Compiler {
   compileCreateTable(node: CreateTableExpression) {
     const columns: Array<{ name: symbol; type: DType }> = [];
     const query = node.query ? this.compileQuery(node.query) : undefined;
+    if (this.context.tables.has(node.name)) {
+      if (node.ifNotExists) {
+        return new EvalConstant(1);
+      }
+      throw new CompilationError(`relation "${node.name}" already exists`, node); 
+    }
     node.columns.forEach((col) => {
       const type = typeFor(col.type);
       if (type) {
-        columns.push({ name: Symbol(col.name), type: col.array ? [type] : type });
+        columns.push({
+          name: Symbol(col.name),
+          type: col.isArray ? [type] : type,
+        });
       } else {
         throw new CompilationError(`unrecognized type "${col.type}"`, node);
       }
@@ -1475,9 +1485,8 @@ export class Compiler {
     }
     return new EvalCreateTable(
       this.context,
-      node.name,
+      node,
       columns,
-      node.using,
       query,
     );
   }
@@ -1522,7 +1531,7 @@ export class Compiler {
       });
       rows.push(row);
     });
-    return new EvalInsert(table, rows);
+    return new EvalInsert(node, table, rows);
   }
 }
 

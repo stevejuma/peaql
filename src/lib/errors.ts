@@ -112,7 +112,7 @@ export class StatementError extends Error {
     readonly statement: PreparedStatment,
     readonly options?: ErrorOptions,
   ) {
-    super(message, options);
+    super(message + statement.errors.join(","), options);
   }
 }
 
@@ -121,7 +121,7 @@ export class ParseError extends Error {
     message: string,
     readonly options: {
       node: string;
-      position: {from: number; to: number};
+      position: { from: number; to: number };
       content: string;
       cause?: unknown;
     },
