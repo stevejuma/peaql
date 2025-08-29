@@ -5,10 +5,9 @@ import { Table } from "./models";
 import { INTEGER, normalizeColumns } from "./types";
 
 describe("Create table", () => {
-
   test("Creates timestamp", () => {
     const context = new Context();
-     context.execute(`
+    context.execute(`
         CREATE TABLE t1(a timestamp); 
         INSERT INTO t1(a) VALUES('2022-07-17');
       `);
@@ -39,7 +38,7 @@ describe("Create table", () => {
           CREATE TABLE t1(a STRING, b INTEGER);
           INSERT INTO t1(a,b) VALUES(55, 'a');
       `);
-    }).toThrow("invalid input syntax for type string: 55")
+    }).toThrow("invalid input syntax for type string: 55");
   });
 
   test("Evaluates table constraints on insert", () => {
@@ -49,7 +48,9 @@ describe("Create table", () => {
           CREATE TABLE t1(a STRING, b INTEGER, constraint CHECK(b > 100));
           INSERT INTO t1(a,b) VALUES('a', 55);
       `);
-    }).toThrow(`Failing row contains (a, 55). new row for relation "t1" violates check constraint "t1_b_check"`)
+    }).toThrow(
+      `Failing row contains (a, 55). new row for relation "t1" violates check constraint "t1_b_check"`,
+    );
   });
 
   test("Evaluates column constraints on insert", () => {
@@ -59,7 +60,9 @@ describe("Create table", () => {
           CREATE TABLE t1(a STRING CHECK(b > 100), b INTEGER);
           INSERT INTO t1(a,b) VALUES('a', 55);
       `);
-    }).toThrow(`Failing row contains (a, 55). new row for relation "t1" violates check constraint "t1_a_check"`)
+    }).toThrow(
+      `Failing row contains (a, 55). new row for relation "t1" violates check constraint "t1_a_check"`,
+    );
   });
 });
 

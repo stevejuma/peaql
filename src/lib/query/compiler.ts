@@ -1463,7 +1463,10 @@ export class Compiler {
       if (node.ifNotExists) {
         return new EvalConstant(1);
       }
-      throw new CompilationError(`relation "${node.name}" already exists`, node); 
+      throw new CompilationError(
+        `relation "${node.name}" already exists`,
+        node,
+      );
     }
     node.columns.forEach((col) => {
       const type = typeFor(col.type);
@@ -1483,12 +1486,7 @@ export class Compiler {
         }
       });
     }
-    return new EvalCreateTable(
-      this.context,
-      node,
-      columns,
-      query,
-    );
+    return new EvalCreateTable(this.context, node, columns, query);
   }
 
   compileInsert(node: InsertExpression) {

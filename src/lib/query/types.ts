@@ -42,7 +42,7 @@ export class TypeDef {
     readonly name: string,
     readonly props: Partial<{
       isType: (obj: any) => boolean;
-      cast: (obj: any) => any
+      cast: (obj: any) => any;
       extensions: Function[];
     }> = {},
   ) {
@@ -54,7 +54,7 @@ export class TypeDef {
       return obj;
     }
     if (this.props.cast) {
-      return this.props.cast(obj)
+      return this.props.cast(obj);
     }
   }
 
@@ -169,7 +169,7 @@ registerType(DateTime, "datetime", {
     if (typeof obj === "string") {
       return DateTime.fromISO(obj);
     }
-  }
+  },
 });
 registerType(Duration, "duration");
 registerType(VARARG, "vararg");
@@ -203,9 +203,9 @@ function _typeOf(value: unknown): DType {
 }
 
 export function typeCast(value: unknown, type?: DType) {
-  type ||= typeOf(value)
-  const typeDef = [...TYPES.values()].find(it => it.type === type);
-  return typeDef?.cast(value)
+  type ||= typeOf(value);
+  const typeDef = [...TYPES.values()].find((it) => it.type === type);
+  return typeDef?.cast(value);
 }
 
 export function typeOf(value: unknown): DType {

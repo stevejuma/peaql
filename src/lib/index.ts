@@ -7,9 +7,9 @@ export * from "./errors";
 export * from "./models";
 
 export type CreateDatabaseProperties = {
-   columns: Record<string, string>;
-   data: Array<Record<string, unknown>>;
-}
+  columns: Record<string, string>;
+  data: Array<Record<string, unknown>>;
+};
 
 export function createDatabase(
   data: Record<string, CreateDatabaseProperties>,

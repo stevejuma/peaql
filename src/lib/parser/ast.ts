@@ -422,9 +422,7 @@ export class StatementExpression extends Expression {
 
 export abstract class TableModificationExpression extends Expression {}
 
-
 export class ColumnDefinition {
-
   constructor(
     readonly name: string,
     readonly type: string,
@@ -432,8 +430,7 @@ export class ColumnDefinition {
     readonly primaryKey: boolean,
     readonly isNotNull: boolean,
     readonly check?: Expression,
-  ) {
-  }
+  ) {}
 
   toString() {
     return `${this.name} ${this.type}${this.isArray ? "[]" : ""} ${this.isNotNull ? "NOT NULL" : ""}`.trim();
@@ -466,7 +463,10 @@ export class PrimaryKeyConstraint extends Constraint {
   }
 
   constraintName(): string {
-      return this.name || this.table + "_" + this.columns.join("_").toLowerCase() + "_pkey";
+    return (
+      this.name ||
+      this.table + "_" + this.columns.join("_").toLowerCase() + "_pkey"
+    );
   }
 }
 
@@ -486,7 +486,10 @@ export class ForeignKeyConstraint extends Constraint {
   }
 
   constraintName(): string {
-    return this.name || this.table + "_" + this.columns.join("_").toLowerCase() + "_fkey";
+    return (
+      this.name ||
+      this.table + "_" + this.columns.join("_").toLowerCase() + "_fkey"
+    );
   }
 }
 
@@ -504,7 +507,10 @@ export class UniqueConstraint extends Constraint {
   }
 
   constraintName(): string {
-    return this.name || this.table + "_" + this.columns.join("_").toLowerCase() + "_uk";
+    return (
+      this.name ||
+      this.table + "_" + this.columns.join("_").toLowerCase() + "_uk"
+    );
   }
 }
 
@@ -522,8 +528,11 @@ export class CheckConstraint extends Constraint {
   }
 
   constraintName(): string {
-    const columns = this.expression.children().filter(it => it instanceof ColumnExpression).map(it => it.column);
-    return this.name ||  this.table + "_" + columns.join("_") + "_check";
+    const columns = this.expression
+      .children()
+      .filter((it) => it instanceof ColumnExpression)
+      .map((it) => it.column);
+    return this.name || this.table + "_" + columns.join("_") + "_check";
   }
 }
 

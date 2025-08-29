@@ -708,12 +708,15 @@ export class Parser {
       while (child) {
         if (child.name === "ColumnType") {
           const type = this.content(child.getChild("Type"));
-          const options = this.content(child.getChild("Options")).trim().replaceAll(/\s+/g, " ").toUpperCase()
+          const options = this.content(child.getChild("Options"))
+            .trim()
+            .replaceAll(/\s+/g, " ")
+            .toUpperCase();
           columns.push(
             new ColumnDefinition(
               this.content(child.getChild("Identifier")),
               type,
-              child.getChild("Array") ? true : false, 
+              child.getChild("Array") ? true : false,
               options.includes("PRIMARY KEY"),
               options.includes("NOT NULL"),
               child.getChild("Check") ? this.stack.pop() : undefined,
@@ -723,8 +726,8 @@ export class Parser {
           let type = child.firstChild;
           let name = "";
           if (type.name === "Identifier") {
-             name = this.content(type);
-             type = type.nextSibling;
+            name = this.content(type);
+            type = type.nextSibling;
           }
           if (type.name === "PrimaryKey") {
             constraints.push(
@@ -760,11 +763,7 @@ export class Parser {
             );
           } else if (type.name === "Check") {
             constraints.push(
-              new CheckConstraint(
-                tableName,
-                this.stack.pop(),
-                name,
-              ),
+              new CheckConstraint(tableName, this.stack.pop(), name),
             );
           }
         }

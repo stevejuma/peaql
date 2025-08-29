@@ -24,7 +24,14 @@ import {
   NotSupportedError,
   ProgrammingError,
 } from "../errors";
-import { CheckConstraint, CreateTableExpression, Expression, InsertExpression, Op, OverExpression } from "../parser/ast";
+import {
+  CheckConstraint,
+  CreateTableExpression,
+  Expression,
+  InsertExpression,
+  Op,
+  OverExpression,
+} from "../parser/ast";
 import { Table } from "./models";
 import { getColumnsAndAggregates } from "./compiler";
 import { Context } from "./context";
@@ -266,11 +273,14 @@ export class EvalInsert extends EvalNode {
       for (const [key, value] of Object.entries(item)) {
         columns[key] ||= this.table.getColumn(key).type;
         row[key] = value.resolve(context);
-        const type = typeOf(row[key])
+        const type = typeOf(row[key]);
         if (!isSameType(type, columns[key]) && type !== NULL) {
           const coerced = typeCast(row[key], columns[key]);
           if (!isSameType(typeOf(coerced), columns[key])) {
-            throw new CompilationError(`invalid input syntax for type ${typeName(columns[key])}: ${JSON.stringify(row[key])}`, this.node);
+            throw new CompilationError(
+              `invalid input syntax for type ${typeName(columns[key])}: ${JSON.stringify(row[key])}`,
+              this.node,
+            );
           }
         }
         record.push(row[key]);
@@ -279,14 +289,18 @@ export class EvalInsert extends EvalNode {
       for (const [key, value] of this.table.columnConstraints.entries()) {
         if (key in row) {
           if (!value.resolve(row)) {
-            throw new CompilationError(`Failing row contains (${record.join(', ')}). new row for relation "${this.table.name}" violates check constraint "${this.table.name}_${key}_check"`);
+            throw new CompilationError(
+              `Failing row contains (${record.join(", ")}). new row for relation "${this.table.name}" violates check constraint "${this.table.name}_${key}_check"`,
+            );
           }
         }
       }
 
       for (const [key, value] of this.table.tableConstraints.entries()) {
         if (!value.resolve(row)) {
-            throw new CompilationError(`Failing row contains (${record.join(', ')}). new row for relation "${this.table.name}" violates check constraint "${key}"`);
+          throw new CompilationError(
+            `Failing row contains (${record.join(", ")}). new row for relation "${this.table.name}" violates check constraint "${key}"`,
+          );
         }
       }
 
@@ -1305,7 +1319,7 @@ export class EvalCreateTable extends EvalNode {
   constructor(
     readonly context: Context,
     readonly node: CreateTableExpression,
-    readonly columns: Array<{ name: symbol; type: DType; }>,
+    readonly columns: Array<{ name: symbol; type: DType }>,
     readonly data?: EvalQuery,
   ) {
     super(EvalCreateTable);
@@ -1323,12 +1337,12 @@ export class EvalCreateTable extends EvalNode {
             node,
           );
         }
-        this.table.columnConstraints.set(column.name, expr)
+        this.table.columnConstraints.set(column.name, expr);
       }
     }
     for (const constraint of node.constraints) {
       if (constraint instanceof CheckConstraint) {
-        const expr = context.compiler.compileExpression(constraint.expression); 
+        const expr = context.compiler.compileExpression(constraint.expression);
         if (expr.type !== Boolean) {
           throw new CompilationError(
             `argument of CHECK must be type boolean, not type ${typeName(expr.type)}`,
@@ -1346,7 +1360,6 @@ export class EvalCreateTable extends EvalNode {
   }
 
   resolve(context?: any): [{ name: symbol; type: DType }[], unknown[][]] {
- 
     const data: unknown[][] = [];
     if (this.data) {
       const [_, queryData] = this.data.resolve(context);

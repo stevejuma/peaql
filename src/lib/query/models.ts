@@ -74,7 +74,6 @@ export function EntityTable<T extends { new (...args: any[]): any }>(Base: T) {
   };
 }
 
-
 export class Table {
   readonly columns = new Map<string, EvalNode>();
   readonly columnConstraints = new Map<string, EvalNode>();
