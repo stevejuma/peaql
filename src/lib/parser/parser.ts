@@ -34,7 +34,6 @@ import {
   CollectionExpression,
   CastExpression,
   StatementExpression,
-  CreateTableColumnDefinition,
   Constraint,
   PrimaryKeyConstraint,
   UniqueConstraint,

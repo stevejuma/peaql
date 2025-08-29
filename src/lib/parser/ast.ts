@@ -1,5 +1,5 @@
 import { DateTime, Duration } from "luxon";
-import { DType, isNull } from "../query/types";
+import { isNull } from "../query/types";
 
 export type Op =
   | ">"
