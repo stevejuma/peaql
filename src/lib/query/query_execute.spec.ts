@@ -3,7 +3,6 @@ import { Context } from "./context";
 import { AttributeColumn } from "./nodes";
 import { Table } from "./models";
 import { INTEGER, normalizeColumns } from "./types";
-import { DateTime } from "luxon";
 
 describe("Create table", () => {
   test("Creates timestamp", () => {
@@ -39,7 +38,7 @@ describe("Create table", () => {
           CREATE TABLE t1(a STRING, b INTEGER);
           INSERT INTO t1(a,b) VALUES(55, 'a');
       `);
-    }).toThrow("invalid input syntax for type string: 55");
+    }).toThrow(`invalid input syntax for type string: 55`);
   });
 
   test("Evaluates table constraints on insert", () => {

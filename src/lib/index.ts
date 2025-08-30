@@ -1,4 +1,4 @@
-import { Context, DType, MutableTableProperties, Table } from "./query";
+import { Context, MutableTableProperties, Table } from "./query";
 
 export * from "./parser";
 export * from "./query";
@@ -8,7 +8,7 @@ export * from "./models";
 
 export type CreateDatabaseProperties = {
   data: Array<Record<string, unknown>>;
-  options?: Partial<MutableTableProperties>
+  options?: Partial<MutableTableProperties>;
 };
 
 export function createDatabase(

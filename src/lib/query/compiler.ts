@@ -531,8 +531,9 @@ export class Compiler {
       const matchedLeftRows = new Set<any>();
 
       const tableName = this.table.name;
+      const joinedTable = this.table;
       const dataLoader = () => {
-        const left: any[] = this.context.tables.get(tableName).rows;
+        const left: any[] = joinedTable.rows;
         const right: unknown[] = [...table];
 
         if (joinExpr.type === "CROSS") {
@@ -587,7 +588,7 @@ export class Compiler {
           }
         }
         return results;
-      }
+      };
 
       this.table = this.table.data(dataLoader);
     }

@@ -27,23 +27,20 @@ export type TableProps = {
 };
 
 export type MutableTableProperties = {
-      name: string;
-      columns:
-        | Record<string, EvalNode>
-        | Map<string, EvalNode>
-        | AttributeColumn[];
-      joins: Map<string, Table>;
-      wildcardColumns: string[];
-      props: Partial<TableProps>;
-      context: any;
-      constraints: Array<TableConstraint>;
-}
+  name: string;
+  columns: Record<string, EvalNode> | Map<string, EvalNode> | AttributeColumn[];
+  joins: Map<string, Table>;
+  wildcardColumns: string[];
+  props: Partial<TableProps>;
+  context: any;
+  constraints: Array<TableConstraint>;
+};
 
 export type TableConstraint = {
-    name: string;
-    expr: EvalNode;
-    column?: string;
-}
+  name: string;
+  expr: EvalNode;
+  column?: string;
+};
 
 export const TableColumns = Symbol("Columns");
 
@@ -103,7 +100,7 @@ export class Table {
       | Record<string, EvalNode>
       | Map<string, EvalNode>
       | EvalColumn[] = {},
-    readonly constraints: Array<TableConstraint> = [], 
+    readonly constraints: Array<TableConstraint> = [],
     readonly wildcards: string[] = [],
     readonly props: TableProps = { data: [] },
   ) {
@@ -191,9 +188,7 @@ export class Table {
     return [...this.prepare()];
   }
 
-  copy(
-    props: Partial<MutableTableProperties> = {},
-  ) {
+  copy(props: Partial<MutableTableProperties> = {}) {
     const table = new Table(
       props.name ?? this.name,
       props.columns ?? this.columns,
@@ -222,16 +217,16 @@ export class Table {
   }
 
   static determineTypes(records: Array<Record<string, unknown>>) {
-      const columns: Record<string, Set<DType>> = {};
-      for (const record of records) {
-        for (const [key, value] of Object.entries(record)) {
-          const type = typeOf(value);
-          columns[key] ||= new Set<DType>();
-          columns[key].add(type);
-        }
+    const columns: Record<string, Set<DType>> = {};
+    for (const record of records) {
+      for (const [key, value] of Object.entries(record)) {
+        const type = typeOf(value);
+        columns[key] ||= new Set<DType>();
+        columns[key].add(type);
       }
-      const columnTypes: Record<string, DType> = {};
-      for (const [key, types] of Object.entries(columns)) {
+    }
+    const columnTypes: Record<string, DType> = {};
+    for (const [key, types] of Object.entries(columns)) {
       const validTypes = [...types].filter((t) => t !== NULL);
       if (validTypes.length == 1) {
         columnTypes[key] = validTypes[0];
@@ -245,17 +240,17 @@ export class Table {
   static fromObject(
     name: string,
     records: Array<Record<string, unknown>>,
-    props?: Partial<MutableTableProperties>
+    props?: Partial<MutableTableProperties>,
   ): Table {
-    let columns: MutableTableProperties["columns"] = props?.columns
+    let columns: MutableTableProperties["columns"] = props?.columns;
     if (!columns) {
-      let columnTypes: Record<string, EvalNode> = {};
+      const columnTypes: Record<string, EvalNode> = {};
       for (const [key, type] of Object.entries(this.determineTypes(records))) {
         if (type instanceof EvalNode) {
-          columnTypes[key] = type
-        } else{
+          columnTypes[key] = type;
+        } else {
           columnTypes[key] = new AttributeColumn(key, type);
-        } 
+        }
       }
       columns = columnTypes;
     }
@@ -270,7 +265,11 @@ export class Table {
           const coerced = typeCast(value, column.type);
           if (!isSameType(typeOf(coerced), column.type)) {
             throw new CompilationError(
-              `Failing row contains (${Object.values(row).map((it) => (isNull(it) ? "null" : it)).join(", ")}). invalid input syntax for type ${typeName(column.type)}: ${JSON.stringify(value)} for column "${name}"`,
+              `Failing row contains (${Object.values(row)
+                .map((it) => (isNull(it) ? "null" : it))
+                .join(
+                  ", ",
+                )}). invalid input syntax for type ${typeName(column.type)}: ${JSON.stringify(value)} for column "${name}"`,
             );
           }
         }
@@ -281,11 +280,19 @@ export class Table {
         if (value === false || !isNull(value)) {
           if (constraint.name === "not-null" && constraint.column) {
             throw new CompilationError(
-              `Failing row contains (${Object.values(row).map((it) => (isNull(it) ? "null" : it)).join(", ")}). null value in column "${constraint.column}" of relation "${table.name}" violates not-null constraint`,
+              `Failing row contains (${Object.values(row)
+                .map((it) => (isNull(it) ? "null" : it))
+                .join(
+                  ", ",
+                )}). null value in column "${constraint.column}" of relation "${table.name}" violates not-null constraint`,
             );
           }
           throw new CompilationError(
-            `Failing row contains (${Object.values(row).map((it) => (isNull(it) ? "null" : it)).join(", ")}). new row for relation "${table.name}" violates check constraint "${constraint.name}"`,
+            `Failing row contains (${Object.values(row)
+              .map((it) => (isNull(it) ? "null" : it))
+              .join(
+                ", ",
+              )}). new row for relation "${table.name}" violates check constraint "${constraint.name}"`,
           );
         }
       }

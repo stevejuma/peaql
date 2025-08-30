@@ -272,7 +272,7 @@ export class EvalInsert extends EvalNode {
     const rows: Array<Array<unknown>> = [];
     const data = this.table.props.data;
     if (!Array.isArray(data)) {
-      throw new InternalError(`Invalid data for table "${this.table.name}"`)
+      throw new InternalError(`Invalid data for table "${this.table.name}"`);
     }
 
     this.values.forEach((item) => {
