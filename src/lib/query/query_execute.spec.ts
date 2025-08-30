@@ -3,6 +3,7 @@ import { Context } from "./context";
 import { AttributeColumn } from "./nodes";
 import { Table } from "./models";
 import { INTEGER, normalizeColumns } from "./types";
+import { DateTime } from "luxon";
 
 describe("Create table", () => {
   test("Creates timestamp", () => {
@@ -45,7 +46,7 @@ describe("Create table", () => {
     const context = new Context();
     expect(() => {
       context.execute(`
-          CREATE TABLE t1(a STRING, b INTEGER, constraint CHECK(b > 100));
+          CREATE TABLE t1(a STRING, b INTEGER, CHECK(b > 100));
           INSERT INTO t1(a,b) VALUES('a', 55);
       `);
     }).toThrow(
@@ -62,6 +63,18 @@ describe("Create table", () => {
       `);
     }).toThrow(
       `Failing row contains (a, 55). new row for relation "t1" violates check constraint "t1_a_check"`,
+    );
+  });
+
+  test("Enforces not null constraint", () => {
+    const context = new Context();
+    expect(() => {
+      context.execute(`
+          CREATE TABLE t1(a STRING, b INTEGER NOT NULL);
+          INSERT INTO t1(a,b) VALUES('a', null);
+      `);
+    }).toThrow(
+      `Failing row contains (a, null). null value in column "b" of relation "t1" violates not-null constraint`,
     );
   });
 });
@@ -95,6 +108,15 @@ describe("Simple Queries", () => {
       ["peter", 1],
       ["pan", 2],
     ]);
+  });
+
+  test("SELECT date structure", () => {
+    const context = new Context();
+    const [columns, data] = context.execute(
+      `SELECT '2022-12-12'::timestamp.month as date`,
+    );
+    expect(normalizeColumns(columns)).toEqual([{ name: "date", type: Number }]);
+    expect(data).toEqual([[12]]);
   });
 
   test("SELECT sum(a)", () => {

@@ -6,26 +6,44 @@ import {
   EvalGetter,
   EvalQuery,
 } from "./nodes";
-import { DateTime } from "luxon";
 import {
   DType,
   EvalNode,
   getValueByDotNotation,
   isNull,
+  isSameType,
   NULL,
   Structure,
   structureFor,
+  typeCast,
+  typeName,
   typeOf,
 } from "./types";
-import { InternalError } from "../errors";
+import { CompilationError, InternalError } from "../errors";
 
 export type TableProps = {
-  data: unknown[];
+  data: unknown[] | (() => unknown[]);
   parent?: Table;
-  open?: DateTime;
-  close?: DateTime | boolean;
-  clear?: boolean;
 };
+
+export type MutableTableProperties = {
+      name: string;
+      columns:
+        | Record<string, EvalNode>
+        | Map<string, EvalNode>
+        | AttributeColumn[];
+      joins: Map<string, Table>;
+      wildcardColumns: string[];
+      props: Partial<TableProps>;
+      context: any;
+      constraints: Array<TableConstraint>;
+}
+
+export type TableConstraint = {
+    name: string;
+    expr: EvalNode;
+    column?: string;
+}
 
 export const TableColumns = Symbol("Columns");
 
@@ -76,8 +94,6 @@ export function EntityTable<T extends { new (...args: any[]): any }>(Base: T) {
 
 export class Table {
   readonly columns = new Map<string, EvalNode>();
-  readonly columnConstraints = new Map<string, EvalNode>();
-  readonly tableConstraints = new Map<string, EvalNode>();
   readonly joins = new Map<string, Table>();
   public static dataType: DType = Object;
 
@@ -87,6 +103,7 @@ export class Table {
       | Record<string, EvalNode>
       | Map<string, EvalNode>
       | EvalColumn[] = {},
+    readonly constraints: Array<TableConstraint> = [], 
     readonly wildcards: string[] = [],
     readonly props: TableProps = { data: [] },
   ) {
@@ -158,7 +175,10 @@ export class Table {
   }
 
   prepare() {
-    return [...this.props.data];
+    if (Array.isArray(this.props.data)) {
+      return [...this.props.data];
+    }
+    return this.props.data();
   }
 
   *[Symbol.iterator]() {
@@ -168,25 +188,16 @@ export class Table {
   }
 
   get rows() {
-    return [...this.props.data];
+    return [...this.prepare()];
   }
 
   copy(
-    props: Partial<{
-      name: string;
-      columns:
-        | Record<string, EvalNode>
-        | Map<string, EvalNode>
-        | AttributeColumn[];
-      joins: Map<string, Table>;
-      wildcardColumns: string[];
-      props: Partial<TableProps>;
-      context: any;
-    }> = {},
+    props: Partial<MutableTableProperties> = {},
   ) {
     const table = new Table(
       props.name ?? this.name,
       props.columns ?? this.columns,
+      props.constraints ?? this.constraints,
       props.wildcardColumns ?? this.wildcards,
       props.props ? { ...this.props, ...props.props } : { ...this.props },
     );
@@ -202,7 +213,7 @@ export class Table {
     return this.copy({ props });
   }
 
-  data<T>(data: T[]) {
+  data<T>(data: T[] | (() => unknown[])) {
     return this.update({ data });
   }
 
@@ -210,31 +221,80 @@ export class Table {
     return new Table(name, columns);
   }
 
+  static determineTypes(records: Array<Record<string, unknown>>) {
+      const columns: Record<string, Set<DType>> = {};
+      for (const record of records) {
+        for (const [key, value] of Object.entries(record)) {
+          const type = typeOf(value);
+          columns[key] ||= new Set<DType>();
+          columns[key].add(type);
+        }
+      }
+      const columnTypes: Record<string, DType> = {};
+      for (const [key, types] of Object.entries(columns)) {
+      const validTypes = [...types].filter((t) => t !== NULL);
+      if (validTypes.length == 1) {
+        columnTypes[key] = validTypes[0];
+        continue;
+      }
+      columnTypes[key] = Object;
+    }
+    return columnTypes;
+  }
+
   static fromObject(
     name: string,
     records: Array<Record<string, unknown>>,
+    props?: Partial<MutableTableProperties>
   ): Table {
-    const columns: Record<string, Set<DType>> = {};
+    let columns: MutableTableProperties["columns"] = props?.columns
+    if (!columns) {
+      let columnTypes: Record<string, EvalNode> = {};
+      for (const [key, type] of Object.entries(this.determineTypes(records))) {
+        if (type instanceof EvalNode) {
+          columnTypes[key] = type
+        } else{
+          columnTypes[key] = new AttributeColumn(key, type);
+        } 
+      }
+      columns = columnTypes;
+    }
 
-    for (const record of records) {
-      for (const [key, value] of Object.entries(record)) {
-        const type = typeOf(value);
-        columns[key] ||= new Set<DType>();
-        columns[key].add(type);
+    const table = new Table(name, columns).data(records);
+
+    for (const row of records) {
+      for (const [name, column] of table.columns.entries()) {
+        const value = column.resolve(row);
+        const valueType = typeOf(value);
+        if (!isSameType(valueType, column.type) && valueType !== NULL) {
+          const coerced = typeCast(value, column.type);
+          if (!isSameType(typeOf(coerced), column.type)) {
+            throw new CompilationError(
+              `Failing row contains (${Object.values(row).map((it) => (isNull(it) ? "null" : it)).join(", ")}). invalid input syntax for type ${typeName(column.type)}: ${JSON.stringify(value)} for column "${name}"`,
+            );
+          }
+        }
+      }
+
+      for (const constraint of table.constraints) {
+        const value = constraint.expr.resolve(row);
+        if (value === false || !isNull(value)) {
+          if (constraint.name === "not-null" && constraint.column) {
+            throw new CompilationError(
+              `Failing row contains (${Object.values(row).map((it) => (isNull(it) ? "null" : it)).join(", ")}). null value in column "${constraint.column}" of relation "${table.name}" violates not-null constraint`,
+            );
+          }
+          throw new CompilationError(
+            `Failing row contains (${Object.values(row).map((it) => (isNull(it) ? "null" : it)).join(", ")}). new row for relation "${table.name}" violates check constraint "${constraint.name}"`,
+          );
+        }
       }
     }
 
-    const columnTypes: Record<string, EvalNode> = {};
-    for (const [key, types] of Object.entries(columns)) {
-      const validTypes = [...types].filter((t) => t !== NULL);
-      if (validTypes.length == 1) {
-        columnTypes[key] = new AttributeColumn(key, validTypes[0]);
-        continue;
-      }
-      columnTypes[key] = new AttributeColumn(key, Object);
+    if (props) {
+      return table.copy(props);
     }
-
-    return new Table(name, columnTypes).data(records);
+    return table;
   }
 }
 

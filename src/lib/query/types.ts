@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { DateTime, Duration } from "luxon";
+import { Decimal, isValidNumber, parseNumber } from "../decimal";
 
 export const NULL = class {
   toString() {
@@ -42,7 +43,7 @@ export class TypeDef {
     readonly name: string,
     readonly props: Partial<{
       isType: (obj: any) => boolean;
-      cast: (obj: any) => any;
+      cast: (obj: any, context: TypeDef) => any;
       extensions: Function[];
     }> = {},
   ) {
@@ -54,7 +55,7 @@ export class TypeDef {
       return obj;
     }
     if (this.props.cast) {
-      return this.props.cast(obj);
+      return this.props.cast(obj, this);
     }
   }
 
@@ -106,7 +107,7 @@ export function registerType(
   props: Partial<{
     isType: (obj: any) => boolean;
     aliases: string[];
-    cast: (obj: any) => any;
+    cast: (obj: any, context: TypeDef) => any;
     extensions: Function[];
   }> = {},
 ) {
@@ -150,18 +151,42 @@ registerType(INTEGER, "integer", {
   isType: (obj) => typeof obj === "number" && Number.isInteger(obj),
   extensions: [Number],
   aliases: ["int", "integer", "real"],
+  cast: (obj) => {
+    if (typeof obj === "number") return obj;
+    if (obj instanceof Decimal) return obj.number;
+    if (typeof obj === "string" && isValidNumber(obj)) {
+      return parseNumber(obj).number
+    }
+  }
 });
 registerType(Number, "number", {
   isType: (obj) => typeof obj === "number",
   aliases: ["number", "double"],
+  cast: (obj) => {
+    if (typeof obj === "number") return obj;
+    if (obj instanceof Decimal) return obj.number;
+    if (typeof obj === "string" && isValidNumber(obj)) {
+      return parseNumber(obj).number
+    }
+  }
 });
 registerType(Boolean, "boolean", {
   isType: (obj) => typeof obj === "boolean",
   aliases: ["bool"],
+  cast: (obj) => {
+    if (typeof obj === "number") return obj > 0;
+    if (obj instanceof Decimal) return obj.number > 0;
+    if (typeof obj === "string") {
+      return obj.toLowerCase().trim() === "true";
+    }
+  }
 });
 registerType(String, "string", {
   isType: (obj) => typeof obj === "string",
   aliases: ["str", "text", "varchar"],
+  cast: (obj) => {
+    return obj?.toString();
+  }
 });
 registerType(DateTime, "datetime", {
   aliases: ["date", "timestamp", "timestampz"],

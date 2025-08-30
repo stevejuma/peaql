@@ -21,11 +21,14 @@ import { executeSelect } from "./query_execute";
 import {
   CompilationError,
   DataError,
+  InternalError,
   NotSupportedError,
   ProgrammingError,
 } from "../errors";
 import {
+  BooleanExpression,
   CheckConstraint,
+  ColumnExpression,
   CreateTableExpression,
   Expression,
   InsertExpression,
@@ -267,6 +270,11 @@ export class EvalInsert extends EvalNode {
   resolve(context?: any): [{ name: symbol; type: DType }[], unknown[][]] {
     const columns: Record<string, DType> = {};
     const rows: Array<Array<unknown>> = [];
+    const data = this.table.props.data;
+    if (!Array.isArray(data)) {
+      throw new InternalError(`Invalid data for table "${this.table.name}"`)
+    }
+
     this.values.forEach((item) => {
       const row: Record<string, unknown> = {};
       const record: unknown[] = [];
@@ -286,26 +294,22 @@ export class EvalInsert extends EvalNode {
         record.push(row[key]);
       }
 
-      for (const [key, value] of this.table.columnConstraints.entries()) {
-        if (key in row) {
-          if (!value.resolve(row)) {
+      for (const constraint of this.table.constraints) {
+        const value = constraint.expr.resolve(row);
+        if (value === false || !isNull(value)) {
+          if (constraint.name === "not-null" && constraint.column) {
             throw new CompilationError(
-              `Failing row contains (${record.join(", ")}). new row for relation "${this.table.name}" violates check constraint "${this.table.name}_${key}_check"`,
+              `Failing row contains (${record.map((it) => (isNull(it) ? "null" : it)).join(", ")}). null value in column "${constraint.column}" of relation "${this.table.name}" violates not-null constraint`,
             );
           }
-        }
-      }
-
-      for (const [key, value] of this.table.tableConstraints.entries()) {
-        if (!value.resolve(row)) {
           throw new CompilationError(
-            `Failing row contains (${record.join(", ")}). new row for relation "${this.table.name}" violates check constraint "${key}"`,
+            `Failing row contains (${record.map((it) => (isNull(it) ? "null" : it)).join(", ")}). new row for relation "${this.table.name}" violates check constraint "${constraint.name}"`,
           );
         }
       }
 
       rows.push(record);
-      this.table.props.data.push(row);
+      data.push(row);
     });
 
     const keys = Object.keys(columns).map((k) => Symbol(k));
@@ -1329,6 +1333,18 @@ export class EvalCreateTable extends EvalNode {
     this.table = Table.create(this.node.name, ...cols);
     context.compiler.stack.push(this.table);
     for (const column of node.columns) {
+      if (column.isNotNull) {
+        const expr = context.compiler.compileExpression(
+          new BooleanExpression(node.parseInfo, "ISNOTNULL", [
+            new ColumnExpression(node.parseInfo, column.name),
+          ]),
+        );
+        this.table.constraints.push({
+          name: `not-null`,
+          expr,
+          column: column.name,
+        });
+      }
       if (column.check) {
         const expr = context.compiler.compileExpression(column.check);
         if (expr.type !== Boolean) {
@@ -1337,7 +1353,11 @@ export class EvalCreateTable extends EvalNode {
             node,
           );
         }
-        this.table.columnConstraints.set(column.name, expr);
+        this.table.constraints.push({
+          name: `${this.table.name}_${column.name}_check`,
+          expr,
+          column: column.name,
+        });
       }
     }
     for (const constraint of node.constraints) {
@@ -1349,7 +1369,10 @@ export class EvalCreateTable extends EvalNode {
             node,
           );
         }
-        this.table.tableConstraints.set(constraint.constraintName(), expr);
+        this.table.constraints.push({
+          name: constraint.constraintName(),
+          expr,
+        });
       }
     }
     context.compiler.stack.pop();

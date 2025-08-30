@@ -537,18 +537,21 @@ CreateTable {
 Check { check "(" expr ")" }
 
 Constraint {
-    constraint Identifier?
+    Check | 
+    constraint Identifier Check |
     (
-        PrimaryKey { primary key "(" (Identifier  ("," Identifier)* )")"} | 
-        Unique { unique  "(" (Identifier  ("," Identifier)* )")" } |
-        Check |
-        ForeignKey { 
-          foreign  key 
-          SourceColumns { "(" (Identifier  ("," Identifier)* )")" }
-          references
-          TargetTable { Identifier }
-          TargetColumns { "(" (Identifier  ("," Identifier)* )")" }
-        }
+        constraint Identifier?
+        (
+            PrimaryKey { primary key "(" (Identifier  ("," Identifier)* )")"} | 
+            Unique { unique  "(" (Identifier  ("," Identifier)* )")" } |
+            ForeignKey { 
+            foreign  key 
+            SourceColumns { "(" (Identifier  ("," Identifier)* )")" }
+            references
+            TargetTable { Identifier }
+            TargetColumns { "(" (Identifier  ("," Identifier)* )")" }
+            }
+        )
     )
 }
 

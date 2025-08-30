@@ -1112,9 +1112,11 @@ export class Parser {
         top.args.push(left, right);
       }
     } else if (node.name === "Attribute") {
-      const fn = node.node.getChild("Function")
-        ? (this.stack.pop() as FunctionExpression)
-        : this.content(node.node.getChild("Identifier"));
+      const last = node.node.lastChild;
+      const fn =
+        last.name === "Function"
+          ? (this.stack.pop() as FunctionExpression)
+          : this.content(last);
       this.add(new AttributeExpression(parseInfo, this.stack.pop(), fn));
     } else if (node.name === "Subscript") {
       this.add(
