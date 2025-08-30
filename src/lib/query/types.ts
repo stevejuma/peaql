@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { DateTime, Duration } from "luxon";
+import { Decimal, isValidNumber, parseNumber } from "../decimal";
 
 export const NULL = class {
   toString() {
@@ -168,6 +169,16 @@ registerType(DateTime, "datetime", {
   cast: (obj) => {
     if (typeof obj === "string") {
       return DateTime.fromISO(obj);
+    }
+  },
+});
+registerType(Decimal, "numeric", {
+  aliases: ["decimal"],
+  cast: (obj) => {
+    if (typeof obj === "number") return new Decimal(obj);
+    if (obj instanceof Decimal) return obj;
+    if (typeof obj === "string" && isValidNumber(obj)) {
+      return parseNumber(obj);
     }
   },
 });
