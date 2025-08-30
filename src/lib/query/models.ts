@@ -277,7 +277,7 @@ export class Table {
 
       for (const constraint of table.constraints) {
         const value = constraint.expr.resolve(row);
-        if (value === false || !isNull(value)) {
+        if (value === false || isNull(value)) {
           if (constraint.name === "not-null" && constraint.column) {
             throw new CompilationError(
               `Failing row contains (${Object.values(row)

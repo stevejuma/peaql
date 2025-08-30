@@ -8,6 +8,21 @@ describe("Create table", () => {
   test("Creates timestamp", () => {
     const context = new Context();
     context.execute(`
+        CREATE TABLE genre
+        (
+            genre_id INT NOT NULL,
+            name VARCHAR(120),
+            CONSTRAINT genre_pkey PRIMARY KEY  (genre_id)
+        );
+        INSERT INTO genre (genre_id, name) VALUES
+        (1, 'Rock'),
+        (2, 'Jazz');
+      `);
+  });
+
+  test("Creates timestamp", () => {
+    const context = new Context();
+    context.execute(`
         CREATE TABLE t1(a timestamp); 
         INSERT INTO t1(a) VALUES('2022-07-17');
       `);
