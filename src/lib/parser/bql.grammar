@@ -558,7 +558,7 @@ Constraint {
 ColumnType {
     Identifier
     Type { Identifier | keyword }
-    Size { "(" Integer ")"}?
+    Size { "(" Integer ("," Integer)? ")" }?
     Array { "[]" }?
     Options {
         (primary key)? (not null)?
