@@ -289,6 +289,8 @@ export class EvalInsert extends EvalNode {
               `invalid input syntax for type ${typeName(columns[key])}: ${JSON.stringify(row[key])}`,
               this.node,
             );
+          } else {
+            row[key] = coerced;
           }
         }
         record.push(row[key]);
@@ -298,8 +300,6 @@ export class EvalInsert extends EvalNode {
         const value = constraint.expr.resolve(row);
         if (value === false || isNull(value)) {
           if (constraint.name === "not-null" && constraint.column) {
-            console.log(row, value);
-
             throw new CompilationError(
               `Failing row contains (${record.map((it) => (isNull(it) ? "null" : it)).join(", ")}). null value in column "${constraint.column}" of relation "${this.table.name}" violates not-null constraint`,
             );

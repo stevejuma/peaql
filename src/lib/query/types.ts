@@ -164,11 +164,97 @@ registerType(String, "string", {
   isType: (obj) => typeof obj === "string",
   aliases: ["str", "text", "varchar"],
 });
+
+export const DATE_TIME_FORMATS = [
+  // Date + time
+  "yyyy-MM-dd'T'HH:mm:ss.SSSZZ", // 2025-08-30T14:23:45.123+02:00
+  "yyyy-MM-dd'T'HH:mm:ssZZ", // 2025-08-30T14:23:45+02:00
+  "yyyy-MM-dd'T'HH:mm:ss", // 2025-08-30T14:23:45
+  "yyyy-MM-dd HH:mm:ss.SSSZZ", // 2025-08-30 14:23:45.123+02:00
+  "yyyy-MM-dd HH:mm:ssZZ", // 2025-08-30 14:23:45+02:00
+  "yyyy-MM-dd HH:mm:ss.SSS", // 2025-08-30 14:23:45.123
+  "yyyy-MM-dd HH:mm:ss", // 2025-08-30 14:23:45
+
+  // US-style
+  "M/d/yyyy HH:mm:ss", // 8/3/2025 14:23:45 (single-digit month/day)
+  "MM/dd/yyyy HH:mm:ss", // 08/30/2025 14:23:45
+  "M/d/yyyy h:mm:ss a", // 8/3/2025 2:23:45 PM
+  "MM/dd/yyyy h:mm:ss a", // 08/30/2025 2:23:45 PM
+
+  // European-style
+  "d.M.yyyy HH:mm:ss", // 3.8.2025 14:23:45 (single-digit day/month)
+  "dd.MM.yyyy HH:mm:ss", // 30.08.2025 14:23:45
+
+  // Compact ISO
+  "yyyyMMdd'T'HHmmss", // 20250830T142345
+
+  // Time only
+  "HH:mm:ss", // 14:23:45
+
+  // With named time zone
+  "yyyy-MM-dd HH:mm:ss z", // 2025-08-30 14:23:45 Europe/Berlin
+
+  // RFC 2822
+  "EEE, d LLL yyyy HH:mm:ss ZZZ", // Sat, 3 Aug 2025 14:23:45 +0200 (single-digit day)
+  "EEE, dd LLL yyyy HH:mm:ss ZZZ", // Sat, 30 Aug 2025 14:23:45 +0200,
+
+  // Date only (all variants)
+  "yyyy-MM-dd", // 2025-08-30 (ISO)
+  "yyyy-M-d",
+  "yyyy-M-dd",
+  "yyyy-MM-d",
+  "yyyy-MM-dd",
+  "M/d/yyyy", // 8/3/2025 (single-digit month/day)
+  "MM/dd/yyyy", // 08/30/2025 (US)
+  "d.M.yyyy", // 3.8.2025 (single-digit day/month)
+  "dd.MM.yyyy", // 30.08.2025 (European)
+  "yyyyMMdd", // 20250830 (Compact ISO)
+  "EEE, d LLL yyyy", // Sat, 3 Aug 2025 (single-digit day)
+  "EEE, dd LLL yyyy", // Sat, 30 Aug 2025 (RFC 2822)
+];
+
+export function parseDateTime(value: string) {
+  const parsers: Array<(value: string) => DateTime> = [
+    DateTime.fromISO,
+    DateTime.fromSQL,
+    DateTime.fromHTTP,
+    DateTime.fromRFC2822,
+  ];
+
+  for (const parse of parsers) {
+    const dt = parse(value);
+    if (dt && dt.isValid) {
+      return dt;
+    }
+  }
+
+  for (const format of DATE_TIME_FORMATS) {
+    const patterns = [
+      ...new Set([
+        format,
+        format.replaceAll("-", "/"),
+        format.replaceAll("-", "."),
+        format.replaceAll("/", "-"),
+        format.replaceAll("/", "."),
+        format.replaceAll(".", "/"),
+        format.replaceAll(".", "-"),
+      ]),
+    ];
+
+    for (const pattern of patterns) {
+      const dt = DateTime.fromFormat(value, pattern);
+      if (dt && dt.isValid) {
+        return dt;
+      }
+    }
+  }
+}
+
 registerType(DateTime, "datetime", {
   aliases: ["date", "timestamp", "timestampz"],
   cast: (obj) => {
     if (typeof obj === "string") {
-      return DateTime.fromISO(obj);
+      return parseDateTime(obj);
     }
   },
 });

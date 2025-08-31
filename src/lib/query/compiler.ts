@@ -480,6 +480,41 @@ export class Compiler {
     };
   }
 
+  isEquiJoin(expr: Expression, columns: Array<Expression>): boolean {
+    if (expr instanceof BooleanExpression) {
+      for (const arg of expr.args) {
+        if (!this.isEquiJoin(arg, columns)) {
+          return false;
+        }
+      }
+      return true;
+    } else if (expr instanceof AttributeExpression) {
+      if (typeof expr.name !== "string") {
+        return true;
+      }
+      if (expr.operand instanceof ColumnExpression) {
+        columns.push(expr);
+        return true;
+      }
+      return false;
+    } else if (expr instanceof ColumnExpression) {
+      columns.push(expr);
+      return true;
+    } else if (expr instanceof CastExpression) {
+      return this.isEquiJoin(expr.expr, columns);
+    } else if (expr instanceof LiteralExpression) {
+      return true;
+    } else if (expr instanceof FunctionExpression) {
+      for (const arg of expr.args) {
+        if (!this.isEquiJoin(arg, columns)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
   compileJoins(nodes: JoinExpression[]) {
     if (!nodes.length) {
       return;
@@ -527,70 +562,176 @@ export class Compiler {
 
       const results: unknown[] = [];
       const expr = this.compileExpression(joinExpr.condition);
+
+      const columns: Array<AttributeExpression | ColumnExpression> = [];
+
       const matchedRightRows = new Set<any>();
       const matchedLeftRows = new Set<any>();
 
       const tableName = this.table.name;
       const joinedTable = this.table;
-      const dataLoader = () => {
-        const left: any[] = joinedTable.rows;
-        const right: unknown[] = [...table];
 
-        if (joinExpr.type === "CROSS") {
-          for (const leftRow of left) {
-            for (const rightRow of right) {
-              const data: Record<string, unknown> = {
-                ...leftRow,
-                [tableName]: leftRow,
-                [rightKey]: rightRow,
-              };
-              if (expr.resolve(data)) {
-                results.push({ ...leftRow, [rightKey]: rightRow });
+      const leftColumns: Array<EvalNode> = [];
+      const rightColumns: Array<EvalNode> = [];
+
+      if (this.isEquiJoin(joinExpr.condition, columns)) {
+        for (const column of columns) {
+          if (column instanceof AttributeExpression) {
+            if (column.operand instanceof ColumnExpression) {
+              if (
+                column.operand.column === table.name ||
+                column.operand.column === rightKey
+              ) {
+                rightColumns.push(this.compileExpression(column));
+              } else {
+                leftColumns.push(this.compileExpression(column));
               }
             }
           }
-        } else {
-          for (const leftRow of left) {
-            let matched = false;
-            for (const rightRow of right) {
-              const data: Record<string, unknown> = {
-                ...leftRow,
-                [tableName]: leftRow,
-                [rightKey]: rightRow,
-              };
-              if (expr.resolve(data)) {
-                matched = true;
-                matchedRightRows.add(rightRow);
-                matchedLeftRows.add(leftRow);
-                results.push({ ...leftRow, [rightKey]: rightRow });
-              }
-            }
+        }
+      }
 
-            if (
-              (!matched && joinExpr.type === "LEFT") ||
-              joinExpr.type === "FULL"
-            ) {
-              results.push({ ...leftRow });
-            }
+      if (leftColumns.length === rightColumns.length) {
+        const dataLoader = () => {
+          const left: any[] = joinedTable.rows;
+          const right: unknown[] = [...table];
+          const rightMap = new Map<string, Array<unknown>>();
+          for (const rightRow of right) {
+            const key = rightColumns
+              .map((it) =>
+                it.resolve({
+                  [rightKey]: rightRow,
+                }),
+              )
+              .join(":");
+            if (!rightMap.has(key)) rightMap.set(key, []);
+            rightMap.get(key).push(rightRow);
+          }
 
-            if (joinExpr.type === "RIGHT" || joinExpr.type === "FULL") {
-              for (const rightRow of right) {
-                if (!matchedRightRows.has(rightRow)) {
-                  results.push({ [rightKey]: rightRow });
+          if (joinExpr.type === "CROSS") {
+            for (const leftRow of left) {
+              const key = leftColumns
+                .map((it) => it.resolve(leftRow))
+                .join(":");
+              const matches = rightMap.get(key) || [];
+              for (const rightRow of matches) {
+                const data: Record<string, unknown> = {
+                  ...leftRow,
+                  [tableName]: leftRow,
+                  [rightKey]: rightRow,
+                };
+                if (expr.resolve(data)) {
+                  results.push({ ...leftRow, [rightKey]: rightRow });
                 }
               }
             }
-          }
+          } else {
+            for (const leftRow of left) {
+              let matched = false;
+              const key = leftColumns
+                .map((it) => it.resolve(leftRow))
+                .join(":");
+              const matches = rightMap.get(key) || [];
+              for (const rightRow of matches) {
+                const data: Record<string, unknown> = {
+                  ...leftRow,
+                  [tableName]: leftRow,
+                  [rightKey]: rightRow,
+                };
+                if (expr.resolve(data)) {
+                  matched = true;
+                  matchedRightRows.add(rightRow);
+                  matchedLeftRows.add(leftRow);
+                  results.push({ ...leftRow, [rightKey]: rightRow });
+                }
+              }
 
-          // returns only left rows that did not match any right row
-          if (joinExpr.type === "ANTI") {
-            return left.filter((leftRow) => !matchedLeftRows.has(leftRow));
-          }
-        }
-        return results;
-      };
+              if (
+                (!matched && joinExpr.type === "LEFT") ||
+                joinExpr.type === "FULL"
+              ) {
+                results.push({ ...leftRow });
+              }
 
-      this.table = this.table.data(dataLoader);
+              if (joinExpr.type === "RIGHT" || joinExpr.type === "FULL") {
+                for (const rightRow of right) {
+                  if (!matchedRightRows.has(rightRow)) {
+                    results.push({ [rightKey]: rightRow });
+                  }
+                }
+              }
+            }
+
+            // returns only left rows that did not match any right row
+            if (joinExpr.type === "ANTI") {
+              return left.filter((leftRow) => !matchedLeftRows.has(leftRow));
+            }
+          }
+          return results;
+        };
+
+        this.table = this.table.data(dataLoader);
+      } else {
+        const dataLoader = () => {
+          const left: any[] = joinedTable.rows;
+          const right: unknown[] = [...table];
+
+          if (joinExpr.type === "CROSS") {
+            for (const leftRow of left) {
+              for (const rightRow of right) {
+                const data: Record<string, unknown> = {
+                  ...leftRow,
+                  [tableName]: leftRow,
+                  [rightKey]: rightRow,
+                };
+                if (expr.resolve(data)) {
+                  results.push({ ...leftRow, [rightKey]: rightRow });
+                }
+              }
+            }
+          } else {
+            for (const leftRow of left) {
+              let matched = false;
+              for (const rightRow of right) {
+                const data: Record<string, unknown> = {
+                  ...leftRow,
+                  [tableName]: leftRow,
+                  [rightKey]: rightRow,
+                };
+                if (expr.resolve(data)) {
+                  matched = true;
+                  matchedRightRows.add(rightRow);
+                  matchedLeftRows.add(leftRow);
+                  results.push({ ...leftRow, [rightKey]: rightRow });
+                }
+              }
+
+              if (
+                (!matched && joinExpr.type === "LEFT") ||
+                joinExpr.type === "FULL"
+              ) {
+                results.push({ ...leftRow });
+              }
+
+              if (joinExpr.type === "RIGHT" || joinExpr.type === "FULL") {
+                for (const rightRow of right) {
+                  if (!matchedRightRows.has(rightRow)) {
+                    results.push({ [rightKey]: rightRow });
+                  }
+                }
+              }
+            }
+
+            // returns only left rows that did not match any right row
+            if (joinExpr.type === "ANTI") {
+              return left.filter((leftRow) => !matchedLeftRows.has(leftRow));
+            }
+          }
+          return results;
+        };
+
+        this.table = this.table.data(dataLoader);
+      }
     }
   }
 

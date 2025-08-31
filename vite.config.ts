@@ -8,6 +8,7 @@ export default defineConfig({
   esbuild: {
     minifyIdentifiers: false,
   },
+  assetsInclude: ["**/*.sql"],
   test: {
     coverage: {
       reporter: ["html"],

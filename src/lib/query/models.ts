@@ -271,6 +271,8 @@ export class Table {
                   ", ",
                 )}). invalid input syntax for type ${typeName(column.type)}: ${JSON.stringify(value)} for column "${name}"`,
             );
+          } else {
+            row[name] = coerced;
           }
         }
       }
