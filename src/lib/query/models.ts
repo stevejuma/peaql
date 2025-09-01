@@ -16,10 +16,13 @@ import {
   Structure,
   structureFor,
   typeCast,
+  typeFor,
   typeName,
   typeOf,
 } from "./types";
 import { CompilationError, InternalError } from "../errors";
+import { Expression, Query } from "../parser";
+import { Context } from "./context";
 
 export type TableProps = {
   data: unknown[] | (() => unknown[]);
@@ -38,8 +41,16 @@ export type MutableTableProperties = {
 
 export type TableConstraint = {
   name: string;
+  constraint: Expression;
   expr: EvalNode;
   column?: string;
+};
+
+export type TableModel = {
+  name: string;
+  columns: Array<{ name: string; type: string }>;
+  constraints: Array<{ column?: string; expr: string; name: string }>;
+  data: Array<unknown>;
 };
 
 export const TableColumns = Symbol("Columns");
@@ -212,6 +223,76 @@ export class Table {
     return this.update({ data });
   }
 
+  validateData(): this {
+    const records = (
+      Array.isArray(this.props.data) ? this.props.data : this.props.data()
+    ) as Array<Record<string, unknown>>;
+    for (const row of records) {
+      for (const [name, column] of this.columns.entries()) {
+        const value = column.resolve(row);
+        const valueType = typeOf(value);
+        if (!isSameType(valueType, column.type) && valueType !== NULL) {
+          const coerced = typeCast(value, column.type);
+          if (!isSameType(typeOf(coerced), column.type)) {
+            throw new CompilationError(
+              `Failing row contains (${Object.values(row)
+                .map((it) => (isNull(it) ? "null" : it))
+                .join(
+                  ", ",
+                )}). invalid input syntax for type ${typeName(column.type)}: ${JSON.stringify(value)} for column "${name}"`,
+            );
+          } else {
+            row[name] = coerced;
+          }
+        }
+      }
+
+      for (const constraint of this.constraints) {
+        const value = constraint.expr.resolve(row);
+        if (value === false || isNull(value)) {
+          if (constraint.name === "not-null" && constraint.column) {
+            throw new CompilationError(
+              `Failing row contains (${Object.values(row)
+                .map((it) => (isNull(it) ? "null" : it))
+                .join(
+                  ", ",
+                )}). null value in column "${constraint.column}" of relation "${this.name}" violates not-null constraint`,
+            );
+          }
+          if (value === true || isNull(value)) continue;
+          throw new CompilationError(
+            `Failing row contains (${Object.values(row)
+              .map((it) => (isNull(it) ? "null" : it))
+              .join(
+                ", ",
+              )}). new row for relation "${this.name}" violates check constraint "${constraint.name}"`,
+          );
+        }
+      }
+    }
+
+    return this;
+  }
+
+  toJSON(): TableModel {
+    const record: TableModel = {
+      name: this.name,
+      columns: [...this.columns.entries()].map(([k, v]) => ({
+        name: k,
+        type: typeName(v.type),
+      })),
+      constraints: this.constraints.map((constraint) => {
+        return {
+          name: constraint.name,
+          column: constraint.column,
+          expr: constraint.constraint.toString(),
+        };
+      }),
+      data: [...this.rows],
+    };
+    return record;
+  }
+
   static create(name: string, ...columns: AttributeColumn[]): Table {
     return new Table(name, columns);
   }
@@ -237,73 +318,38 @@ export class Table {
     return columnTypes;
   }
 
-  static fromObject(
-    name: string,
-    records: Array<Record<string, unknown>>,
-    props?: Partial<MutableTableProperties>,
+  static fromJSON(
+    model: TableModel,
+    options: Partial<MutableTableProperties> = {},
   ): Table {
-    let columns: MutableTableProperties["columns"] = props?.columns;
-    if (!columns) {
-      const columnTypes: Record<string, EvalNode> = {};
-      for (const [key, type] of Object.entries(this.determineTypes(records))) {
-        if (type instanceof EvalNode) {
-          columnTypes[key] = type;
-        } else {
-          columnTypes[key] = new AttributeColumn(key, type);
-        }
+    const columns = model.columns.map(
+      (col) => new AttributeColumn(col.name, typeFor(col.type)),
+    );
+    const table = Table.create(model.name, ...columns);
+    const context = Context.create(table).withDefaultTable(model.name);
+
+    const constraints: TableConstraint[] = model.constraints.map((c) => {
+      const stmt = context.prepare("SELECT " + c.expr);
+      const expr = stmt.expr;
+      if (!(expr instanceof Query)) {
+        throw new CompilationError(`Invalid constraint: ${c.expr}`, expr);
       }
-      columns = columnTypes;
-    }
+      return {
+        name: c.name,
+        column: c.column,
+        constraint: expr.select.targets[0].expression,
+        expr: context.compile(expr.select.targets[0].expression),
+      };
+    });
 
-    const table = new Table(name, columns).data(records);
+    const records = model.data;
 
-    for (const row of records) {
-      for (const [name, column] of table.columns.entries()) {
-        const value = column.resolve(row);
-        const valueType = typeOf(value);
-        if (!isSameType(valueType, column.type) && valueType !== NULL) {
-          const coerced = typeCast(value, column.type);
-          if (!isSameType(typeOf(coerced), column.type)) {
-            throw new CompilationError(
-              `Failing row contains (${Object.values(row)
-                .map((it) => (isNull(it) ? "null" : it))
-                .join(
-                  ", ",
-                )}). invalid input syntax for type ${typeName(column.type)}: ${JSON.stringify(value)} for column "${name}"`,
-            );
-          } else {
-            row[name] = coerced;
-          }
-        }
-      }
-
-      for (const constraint of table.constraints) {
-        const value = constraint.expr.resolve(row);
-        if (value === false || isNull(value)) {
-          if (constraint.name === "not-null" && constraint.column) {
-            throw new CompilationError(
-              `Failing row contains (${Object.values(row)
-                .map((it) => (isNull(it) ? "null" : it))
-                .join(
-                  ", ",
-                )}). null value in column "${constraint.column}" of relation "${table.name}" violates not-null constraint`,
-            );
-          }
-          throw new CompilationError(
-            `Failing row contains (${Object.values(row)
-              .map((it) => (isNull(it) ? "null" : it))
-              .join(
-                ", ",
-              )}). new row for relation "${table.name}" violates check constraint "${constraint.name}"`,
-          );
-        }
-      }
-    }
-
-    if (props) {
-      return table.copy(props);
-    }
-    return table;
+    return table
+      .copy({
+        ...(options || {}),
+        constraints,
+      })
+      .data(records);
   }
 }
 

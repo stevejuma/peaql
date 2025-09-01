@@ -11,7 +11,7 @@ const mimic = "sqlite";
 for (const path in testfiles) {
   describe.concurrent(path, async () => {
     const module = (await testfiles[path]()) as { default: string };
-    const context = new Context();
+    const context = Context.create();
     const commands = parseCommands(module.default);
     const specs: Record<string, (expect: ExpectStatic) => void> = {};
     const setup: Record<string, () => void> = {};

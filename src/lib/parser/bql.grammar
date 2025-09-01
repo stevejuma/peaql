@@ -3,7 +3,7 @@
 }
 
 statement {
-    Statement Unions? | CreateTable | Insert
+    Statement Unions? | CreateTable | UpdateTable | Insert | Delete | DropTable
 }
 
 Option {
@@ -376,7 +376,7 @@ atom {
 
 Function {
     (
-      Identifier "(" Distinct Column ")" |
+      Identifier "(" Distinct (Column | Attribute) ")" |
       Identifier "(" (expr ("," expr)*)? ")" |
       Identifier "(" ASTERISK ")" |
       Identifier "(" Statement Unions? ")"
@@ -534,6 +534,33 @@ CreateTable {
     )
 }
 
+DropTable {
+    drop table Identifier
+}
+
+UpdateTable {
+  update Identifier set
+  Columns {
+    (Eq ("," Eq)*)
+  }
+  Where?
+  Returning { returning targets }?
+}
+
+Insert {
+    insert into
+    Identifier
+    Columns { '('  Identifier ("," Identifier)*  ')' } ? 
+    values
+    Values ("," Values)*
+}
+
+Delete {
+    delete from
+    Identifier
+    Where?
+}
+
 Check { check "(" expr ")" }
 
 Constraint {
@@ -566,14 +593,6 @@ ColumnType {
     Check? 
 }
 
-Insert {
-    insert into
-    Identifier
-    Columns { '('  Identifier ("," Identifier)*  ')' } ? 
-    values
-    Values ("," Values)*
-}
-
 Values {
     '('  Value ("," Value)* ')'
 }
@@ -601,7 +620,8 @@ keyword {
     time | zone | true | false | create | table |
     insert | into | values | current | on |
     case | when | then | else | end | union  | except | intersect |
-    primary | key | array | cast | if | constraint  | foreign | references | unique | check
+    primary | key | array | cast | if | constraint  | foreign | references | unique | check |
+    update | returning | delete | drop
 }
 
 @external tokens properties from "./tokens" { all, exists }
@@ -625,7 +645,8 @@ keyword {
     time, zone, true, false, create, table,
     insert, into, values, current, on,
     case, when, then, else, end , union, except, intersect,
-    primary, key, array, cast, if, constraint, foreign, references, unique, check
+    primary, key, array, cast, if, constraint, foreign, references, unique, check,
+    update, returning, delete, drop
 }
 
 Identifier {

@@ -25,7 +25,7 @@ export class Context {
   readonly compilerOptions: Partial<CompilerOptions> = {};
   compiler!: Compiler;
 
-  constructor(
+  private constructor(
     readonly errors: Error[] = [],
     ...tables: Table[]
   ) {
@@ -38,6 +38,10 @@ export class Context {
   withDefaultTable(name: string): this {
     this.compilerOptions.defaultTableName = name;
     return this;
+  }
+
+  static create(...tables: Table[]): Context {
+    return new Context([], ...tables);
   }
 
   withTables(...tables: Table[]) {
@@ -98,7 +102,7 @@ export class Context {
   }
 
   compile(
-    statement: string | PreparedStatment,
+    statement: string | PreparedStatment | Expression,
     parameters?: Record<string, Constant | Array<Constant>>,
     options?: Partial<CompilerOptions>,
   ): EvalNode {
@@ -106,20 +110,27 @@ export class Context {
       return this.compile(this.prepare(statement), parameters, options);
     }
 
-    if (statement.errors.length) {
+    if ("errors" in statement && statement.errors.length) {
       throw new StatementError("Error processing statement", statement);
     }
 
-    if (this.isTableModification(statement.expr)) {
+    const expr = statement instanceof Expression ? statement : statement.expr;
+
+    if (this.isTableModification(expr)) {
       return new Compiler(this, options ?? this.compilerOptions).compile(
-        statement.expr,
+        expr,
         parameters,
       );
     }
-    return new Compiler(
-      this.copy({ settings: statement.settings }),
-      options ?? this.compilerOptions,
-    ).compile(statement.expr, parameters);
+
+    const context =
+      statement instanceof Expression
+        ? this.copy()
+        : this.copy({ settings: statement.settings });
+    return new Compiler(context, options ?? this.compilerOptions).compile(
+      expr,
+      parameters,
+    );
   }
 
   execute(

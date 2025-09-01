@@ -10,7 +10,7 @@ type TestCase = {
   data?: unknown[][] | unknown | ((input: TestCase) => void);
 };
 
-const context = new Context();
+const context = Context.create();
 context.tables.set(
   "t1",
   Table.create(

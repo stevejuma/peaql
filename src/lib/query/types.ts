@@ -3,6 +3,7 @@
 
 import { DateTime, Duration } from "luxon";
 import { Decimal, isValidNumber, parseNumber } from "../decimal";
+import { Expression } from "../parser";
 
 export const NULL = class {
   toString() {
@@ -415,6 +416,7 @@ export function getValueByDotNotation(
 
 export abstract class EvalNode {
   static inTypes: DType[] = [];
+  expr: Expression | undefined;
   constructor(
     public type: DType,
     public context: any = {},

@@ -845,6 +845,9 @@ export class Compiler {
     this.expressions.push(node);
     try {
       const value = this._compileExpression(node, options);
+      if (value) {
+        value.expr = node;
+      }
       this.expressions.pop();
       return value;
     } catch (e) {

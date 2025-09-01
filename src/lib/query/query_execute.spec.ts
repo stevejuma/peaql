@@ -6,7 +6,7 @@ import { INTEGER, normalizeColumns } from "./types";
 
 describe("Create table", () => {
   test("Creates timestamp", () => {
-    const context = new Context();
+    const context = Context.create();
     context.execute(`
         CREATE TABLE genre
         (
@@ -21,7 +21,7 @@ describe("Create table", () => {
   });
 
   test("Creates timestamp", () => {
-    const context = new Context();
+    const context = Context.create();
     context.execute(`
         CREATE TABLE t1(a timestamp); 
         INSERT INTO t1(a) VALUES('2022-07-17');
@@ -29,7 +29,7 @@ describe("Create table", () => {
   });
 
   test("Fails when creating table that exists", () => {
-    const context = new Context();
+    const context = Context.create();
     expect(() => {
       context.execute(`
         CREATE TABLE t1(a STRING, b INTEGER);
@@ -39,7 +39,7 @@ describe("Create table", () => {
   });
 
   test("Does not create a table if it exists", () => {
-    const context = new Context();
+    const context = Context.create();
     context.execute(`
         CREATE TABLE t1(a STRING, b INTEGER);
         CREATE TABLE IF NOT EXISTS t1(a STRING, b INTEGER);
@@ -47,7 +47,7 @@ describe("Create table", () => {
   });
 
   test("Fails when inserting wrong type", () => {
-    const context = new Context();
+    const context = Context.create();
     expect(() => {
       context.execute(`
           CREATE TABLE t1(a STRING, b INTEGER);
@@ -57,7 +57,7 @@ describe("Create table", () => {
   });
 
   test("Evaluates table constraints on insert", () => {
-    const context = new Context();
+    const context = Context.create();
     expect(() => {
       context.execute(`
           CREATE TABLE t1(a STRING, b INTEGER, CHECK(b > 100));
@@ -69,7 +69,7 @@ describe("Create table", () => {
   });
 
   test("Evaluates column constraints on insert", () => {
-    const context = new Context();
+    const context = Context.create();
     expect(() => {
       context.execute(`
           CREATE TABLE t1(a STRING CHECK(b > 100), b INTEGER);
@@ -81,7 +81,7 @@ describe("Create table", () => {
   });
 
   test("Enforces not null constraint", () => {
-    const context = new Context();
+    const context = Context.create();
     expect(() => {
       context.execute(`
           CREATE TABLE t1(a STRING, b INTEGER NOT NULL);
@@ -94,16 +94,18 @@ describe("Create table", () => {
 });
 
 describe("Simple Queries", () => {
-  const context = new Context().withDefaultTable("postings").withTables(
-    Table.create(
-      "postings",
-      new AttributeColumn("a", Number),
-      new AttributeColumn("b", String),
-    ).data([
-      { a: 1, b: "one" },
-      { a: 2.03, b: "two" },
-    ]),
-  );
+  const context = Context.create()
+    .withDefaultTable("postings")
+    .withTables(
+      Table.create(
+        "postings",
+        new AttributeColumn("a", Number),
+        new AttributeColumn("b", String),
+      ).data([
+        { a: 1, b: "one" },
+        { a: 2.03, b: "two" },
+      ]),
+    );
 
   test("Execute multiple", () => {
     const [columns, data] = context.execute(`
@@ -125,7 +127,7 @@ describe("Simple Queries", () => {
   });
 
   test("SELECT date structure", () => {
-    const context = new Context();
+    const context = Context.create();
     const [columns, data] = context.execute(
       `SELECT '2022-12-12'::timestamp.month as date`,
     );

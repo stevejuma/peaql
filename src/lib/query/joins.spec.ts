@@ -5,7 +5,7 @@ import { Table } from "./models";
 import { INTEGER, normalizeColumns } from "./types";
 
 describe("Joins", () => {
-  const context = new Context().withTables(
+  const context = Context.create(
     Table.create(
       "employees",
       new AttributeColumn("employee_id", Number),

@@ -87,6 +87,10 @@ import {
   references,
   unique,
   check,
+  update,
+  returning,
+  _delete,
+  drop,
 } from "./bql.grammar.terms";
 
 const keywordMap = {
@@ -175,6 +179,10 @@ const keywordMap = {
   references,
   unique,
   check,
+  update,
+  returning,
+  delete: _delete,
+  drop,
 };
 const newline = 10,
   carriage = 13,

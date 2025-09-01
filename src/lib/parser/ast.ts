@@ -597,14 +597,14 @@ export class BooleanExpression extends Expression {
   public toString() {
     if (this.op === "NOT" && this.args.length === 1) {
       return `NOT (${this.args[0]})`;
-    } else if (this.args.length === 1) {
-      return `${this.op}(${this.args[0]})`;
-    } else if (this.op === "BETWEEN") {
-      return `${this.args[0]} BETWEEN ${this.args[1]} AND ${this.args[2]}`;
     } else if (this.op === "ISNULL" && this.args.length == 1) {
       return `${this.args[0]} IS NULL`;
     } else if (this.op === "ISNOTNULL" && this.args.length == 1) {
       return `${this.args[0]} IS NOT NULL`;
+    } else if (this.args.length === 1) {
+      return `${this.op}(${this.args[0]})`;
+    } else if (this.op === "BETWEEN") {
+      return `${this.args[0]} BETWEEN ${this.args[1]} AND ${this.args[2]}`;
     } else if (this.children().some((it) => it instanceof BooleanExpression)) {
       return `(${this.args.join(" " + this.op + " ")})`;
     }

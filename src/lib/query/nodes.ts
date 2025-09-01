@@ -1336,14 +1336,14 @@ export class EvalCreateTable extends EvalNode {
     context.compiler.stack.push(this.table);
     for (const column of node.columns) {
       if (column.isNotNull) {
-        const expr = context.compiler.compileExpression(
-          new BooleanExpression(node.parseInfo, "ISNOTNULL", [
-            new ColumnExpression(node.parseInfo, column.name),
-          ]),
-        );
+        const check = new BooleanExpression(node.parseInfo, "ISNOTNULL", [
+          new ColumnExpression(node.parseInfo, column.name),
+        ]);
+        const expr = context.compiler.compileExpression(check);
         this.table.constraints.push({
           name: `not-null`,
           expr,
+          constraint: check,
           column: column.name,
         });
       }
@@ -1358,6 +1358,7 @@ export class EvalCreateTable extends EvalNode {
         this.table.constraints.push({
           name: `${this.table.name}_${column.name}_check`,
           expr,
+          constraint: column.check,
           column: column.name,
         });
       }
@@ -1374,6 +1375,7 @@ export class EvalCreateTable extends EvalNode {
         this.table.constraints.push({
           name: constraint.constraintName(),
           expr,
+          constraint: constraint.expression,
         });
       }
     }
