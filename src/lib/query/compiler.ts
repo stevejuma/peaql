@@ -31,6 +31,7 @@ import {
   CollectionExpression,
   CastExpression,
   StatementExpression,
+  UpdateTableExpression,
 } from "..";
 import {
   CompilationError,
@@ -65,6 +66,7 @@ import {
   findFunction,
   findOperator,
   EvalStatements,
+  EvalUpdateTable,
 } from "./nodes";
 import { SubQueryTable, Table } from "./models";
 import { Context } from "./context";
@@ -267,14 +269,20 @@ export class Compiler {
         if (!it.aggregate) {
           nonAggrIndexes.push(index);
         }
+        if (!it.visible && !it.aggregate && !groupIndexes.includes(index)) {
+          groupIndexes.push(index);
+        }
       });
 
       const missing = nonAggrIndexes.filter((it) => !groupIndexes.includes(it));
       if (missing.length) {
-        groupIndexes.push(...missing);
-        throw new CompilationError(
-          `column(s) ${missing.map((index) => `"${this.table.name}"."${targets[index].name.description}"`).join(",")} must appear in the GROUP BY clause or be used in an aggregate function`,
-        );
+        if (this.options.supportImplicitGroupBy) {
+          groupIndexes.push(...missing);
+        } else {
+          throw new CompilationError(
+            `column(s) ${missing.map((index) => (targets[index].name ? `"${this.table.name}"."${targets[index]}"` : targets[index])).join(",")} must appear in the GROUP BY clause or be used in an aggregate function`,
+          );
+        }
       }
     }
 
@@ -865,9 +873,10 @@ export class Compiler {
     }
     if (node instanceof Query) {
       return this.compileQuery(node, options);
-    }
-    if (node instanceof CreateTableExpression) {
+    } else if (node instanceof CreateTableExpression) {
       return this.compileCreateTable(node);
+    } else if (node instanceof UpdateTableExpression) {
+      return this.compileUpdateTable(node);
     } else if (node instanceof LiteralExpression) {
       return new EvalConstant(node.value);
     } else if (node instanceof ListExpression) {
@@ -1114,12 +1123,18 @@ export class Compiler {
       );
     } else if (node instanceof StatementExpression) {
       return new EvalStatements(this.context, node.statements);
+    } else if (node instanceof TargetExpression) {
+      const expr = this.compileExpression(node.expression);
+      return new EvalTarget(
+        expr,
+        node.name ? Symbol(node.name) : null,
+        isAggregate(expr),
+      );
     }
 
     throw new NotSupportedError(
       `Expression ${node.constructor.name} not supported: ${node}`,
     );
-    return null;
   }
 
   compileFunction(node: FunctionExpression) {
@@ -1341,7 +1356,9 @@ export class Compiler {
           index = targetExpressions.findIndex((it) => it.isEqual(expr));
           if (index === -1) {
             index = targets.length + newTargets.length;
-            newTargets.push(new EvalTarget(expr, null, isAggregate(expr)));
+            newTargets.push(
+              new EvalTarget(expr, null, isAggregate(expr), false),
+            );
           }
         }
       }
@@ -1607,6 +1624,40 @@ export class Compiler {
       `column '${node.key}'::${typeName(operand.type)} type is not subscriptable:`,
       node,
     );
+  }
+
+  compileUpdateTable(node: UpdateTableExpression) {
+    this.table = node.name;
+    const columns: Record<string, EvalNode> = {};
+    const where = this.compileExpression(node.where);
+    const returning: Array<EvalNode> = node.returning.map((it) =>
+      this.compileExpression(it),
+    );
+
+    for (const expr of node.values) {
+      if (!(expr instanceof BooleanExpression)) {
+        throw new CompilationError(`Syntax error at or near ${expr}`, expr);
+      }
+      if (expr.args.length !== 2 || expr.op !== "=") {
+        throw new CompilationError(`Syntax error at or near ${expr}`, expr);
+      }
+      const column = expr.args[0];
+      if (!(column instanceof ColumnExpression)) {
+        throw new CompilationError(
+          `Syntax error at or near ${expr}`,
+          expr.args[0],
+        );
+      }
+      if (!this.table.getColumn(column.column)) {
+        throw new CompilationError(
+          `column "${column.column}" of relation "${this.table.name}" does not exist`,
+          column,
+        );
+      }
+      columns[column.column] = this.compileExpression(expr.args[1]);
+    }
+
+    return new EvalUpdateTable(this.context, columns, returning, node, where);
   }
 
   compileCreateTable(node: CreateTableExpression) {

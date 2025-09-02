@@ -349,7 +349,8 @@ export class Table {
         ...(options || {}),
         constraints,
       })
-      .data(records);
+      .data(records)
+      .validateData();
   }
 }
 

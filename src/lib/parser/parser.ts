@@ -40,6 +40,7 @@ import {
   ForeignKeyConstraint,
   CheckConstraint,
   ColumnDefinition,
+  UpdateTableExpression,
 } from "./ast";
 import { parser } from "./bql.grammar";
 import { SyntaxNode, Tree, type SyntaxNodeRef } from "@lezer/common";
@@ -298,7 +299,8 @@ export class Parser {
     return (
       expr instanceof Query ||
       expr instanceof CreateTableExpression ||
-      expr instanceof InsertExpression
+      expr instanceof InsertExpression ||
+      expr instanceof UpdateTableExpression
     );
   }
 
@@ -311,7 +313,7 @@ export class Parser {
         return this.#query;
       }
       throw new CompilationError(
-        `Invalid query stack(${this.stack.length})`,
+        `Invalid query stack(${this.stack.length}):\n${this.stack.join("\n")}`,
         this.stack[this.stack.length - 1],
       );
     }
@@ -623,9 +625,15 @@ export class Parser {
     if (node.name === "Target") {
       if (this.stack.length) {
         const expr = this.stack.pop();
-        const query = this.lastQuery;
         const alias = this.getAlias(node);
-        query.select.targets.push(new TargetExpression(parseInfo, expr, alias));
+        if (this.top instanceof Query) {
+          const query = this.lastQuery;
+          query.select.targets.push(
+            new TargetExpression(parseInfo, expr, alias),
+          );
+        } else {
+          this.add(new TargetExpression(parseInfo, expr, alias));
+        }
       }
     } else if (node.name === "Union") {
       const expr = this.stack.pop();
@@ -699,6 +707,56 @@ export class Parser {
       if (this.top instanceof InsertExpression) {
         this.top.values.push(expressions);
       }
+    } else if (node.name === "UpdateTable") {
+      const tableName = this.content(node.node.getChild("Identifier"));
+      const values: Array<Expression> = [];
+      const columns: Array<TargetExpression> = [];
+      let where: Expression | undefined;
+
+      let child = node.node.getChild("Returning")?.lastChild;
+      while (child) {
+        if (child.name === "Target") {
+          const expr = this.stack.pop();
+          if (expr instanceof TargetExpression) {
+            columns.push(expr);
+          } else {
+            throw new CompilationError(
+              `Invalid UpdateTable expression, did not find expected TargetExpression found`,
+              expr,
+            );
+          }
+        } else {
+          throw new CompilationError(
+            `Invalid UpdateTable expression, Expected Target found ${child.name}`,
+          );
+        }
+        child = child.prevSibling;
+      }
+
+      if (node.node.getChild("Where")) {
+        where = this.stack.pop();
+      }
+
+      child = node.node.getChild("Columns")?.lastChild;
+      while (child) {
+        if (child.name === "Eq") {
+          values.push(this.stack.pop());
+        } else {
+          throw new CompilationError(
+            `Invalid UpdateTable expression, Expected Eq found ${child.name}`,
+          );
+        }
+        child = child.prevSibling;
+      }
+      this.stack.push(
+        new UpdateTableExpression(
+          parseInfo,
+          tableName,
+          values.reverse(),
+          columns.reverse(),
+          where,
+        ),
+      );
     } else if (node.name === "CreateTable") {
       const tableName = this.content(node.node.getChild("Identifier"));
       const columns: ColumnDefinition[] = [];
@@ -995,7 +1053,11 @@ export class Parser {
       }
     } else if (node.name === "Where") {
       const last = this.stack.pop();
-      this.lastQuery.where = last;
+      if (this.top instanceof Query) {
+        this.lastQuery.where = last;
+      } else {
+        this.add(last);
+      }
     } else if (node.name === "SubSelect") {
       const subQuery = this.stack.pop();
       if (subQuery instanceof Query) {

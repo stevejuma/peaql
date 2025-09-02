@@ -4,6 +4,52 @@ import { AttributeColumn } from "./nodes";
 import { Table } from "./models";
 import { INTEGER, normalizeColumns } from "./types";
 
+describe("Update table", () => {
+  test("Update single row", () => {
+    const context = Context.create();
+    const updated = context.execute(`
+        CREATE TABLE genre
+        (
+            genre_id INT NOT NULL,
+            name VARCHAR(120),
+            CONSTRAINT genre_pkey PRIMARY KEY  (genre_id)
+        );
+        INSERT INTO genre (genre_id, name) VALUES
+        (1, 'Rock'),
+        (2, 'Jazz');
+        UPDATE genre SET name = 'Rock & Roll'
+        WHERE genre_id = 1;
+      `);
+
+    expect(updated).toBe(1);
+  });
+
+  test("Update returning", () => {
+    const context = Context.create();
+    const [columns, data] = context.execute(`
+        CREATE TABLE genre
+        (
+            genre_id INT NOT NULL,
+            name VARCHAR(120),
+            CONSTRAINT genre_pkey PRIMARY KEY  (genre_id)
+        );
+        INSERT INTO genre (genre_id, name) VALUES
+        (1, 'Rock'),
+        (2, 'Jazz');
+        UPDATE genre SET name = 'Rock & Roll'
+        WHERE genre_id = 1
+        RETURNING name, length(name)
+      `);
+
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "name", type: String },
+      { name: "length(name)", type: Number },
+    ]);
+
+    expect(data).toEqual([["Rock & Roll", 11]]);
+  });
+});
+
 describe("Create table", () => {
   test("Creates timestamp", () => {
     const context = Context.create();

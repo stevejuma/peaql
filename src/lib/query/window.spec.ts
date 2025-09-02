@@ -11,6 +11,7 @@ type TestCase = {
 };
 
 const context = Context.create();
+context.compilerOptions.supportImplicitGroupBy = false;
 context.tables.set(
   "t1",
   Table.create(

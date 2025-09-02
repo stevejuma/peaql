@@ -34,6 +34,7 @@ import {
   InsertExpression,
   Op,
   OverExpression,
+  UpdateTableExpression,
 } from "../parser/ast";
 import { Table } from "./models";
 import { getColumnsAndAggregates } from "./compiler";
@@ -1026,6 +1027,15 @@ export class EvalTarget extends EvalNode {
   resolve(context?: any) {
     return this.expression.resolve(context);
   }
+
+  toString() {
+    if (this.name) {
+      return this.name.description;
+    }
+    if (this.expression.expr) {
+      return this.expression.expr.toString();
+    }
+  }
 }
 
 export class AttributeColumn extends EvalColumn {
@@ -1318,6 +1328,63 @@ export function typedTupleToColumns(
     columns.set(it.column, it);
   });
   return columns;
+}
+
+export class EvalUpdateTable extends EvalNode {
+  constructor(
+    readonly context: Context,
+    readonly columns: Record<string, EvalNode>,
+    readonly returning: Array<EvalNode>,
+    readonly node: UpdateTableExpression,
+    readonly where?: EvalNode,
+  ) {
+    super(EvalUpdateTable);
+  }
+
+  get childNodes(): EvalNode[] {
+    return [];
+  }
+
+  resolve(
+    context?: any,
+  ): number | [{ name: symbol; type: DType }[], unknown[][]] {
+    const table = this.context.tables.get(this.node.name);
+    const data = table.props.data;
+    if (!Array.isArray(data)) {
+      return [[], []];
+    }
+
+    const updated: Array<unknown> = [];
+
+    for (const row of data) {
+      if (!this.where || this.where.resolve(row)) {
+        for (const [key, value] of Object.entries(this.columns)) {
+          (row as Record<string, unknown>)[key] = value.resolve(row);
+        }
+        updated.push(row);
+      }
+    }
+
+    if (this.returning.length) {
+      return [
+        this.returning.map((col) => {
+          return { name: (col as EvalTarget).name, type: col.type };
+        }),
+        updated.map((row) => {
+          return this.returning.map((col) => col.resolve(row));
+        }),
+      ];
+    }
+
+    return updated.length;
+  }
+
+  isEqual(obj: any): boolean {
+    if (!(obj instanceof EvalUpdateTable)) {
+      return false;
+    }
+    return this.node.name === obj.node.name && isEqual(this.node, obj.node);
+  }
 }
 
 export class EvalCreateTable extends EvalNode {

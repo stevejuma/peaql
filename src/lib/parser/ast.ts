@@ -459,7 +459,7 @@ export class PrimaryKeyConstraint extends Constraint {
   }
 
   toString() {
-    return `CONSTRAINT${this.name ? this.name : " "}PRIMARY KEY (${this.columns.join(", ")})`.trim();
+    return `CONSTRAINT ${this.name ? this.name : ""} PRIMARY KEY (${this.columns.join(", ")})`.trim();
   }
 
   constraintName(): string {
@@ -482,7 +482,7 @@ export class ForeignKeyConstraint extends Constraint {
   }
 
   toString() {
-    return `CONSTRAINT${this.name ? this.name : " "}FOREIGN KEY (${this.columns.join(", ")}) REFERENCES ${this.referenceTable}(${this.referenceColumns.join(", ")})`.trim();
+    return `CONSTRAINT ${this.name ? this.name : ""} FOREIGN KEY (${this.columns.join(", ")}) REFERENCES ${this.referenceTable}(${this.referenceColumns.join(", ")})`.trim();
   }
 
   constraintName(): string {
@@ -503,7 +503,7 @@ export class UniqueConstraint extends Constraint {
   }
 
   toString() {
-    return `CONSTRAINT${this.name ? this.name : " "}UNIQUE (${this.columns.join(", ")})`.trim();
+    return `CONSTRAINT ${this.name ? this.name : ""} UNIQUE (${this.columns.join(", ")})`.trim();
   }
 
   constraintName(): string {
@@ -524,7 +524,10 @@ export class CheckConstraint extends Constraint {
   }
 
   toString() {
-    return `CONSTRAINT${this.name ? this.name : " "}CHECK (${this.expression})`.trim();
+    if (!this.name) {
+      return `CHECK (${this.expression})`.trim();
+    }
+    return `CONSTRAINT ${this.name ? this.name : " "} CHECK (${this.expression})`.trim();
   }
 
   constraintName(): string {
@@ -533,6 +536,29 @@ export class CheckConstraint extends Constraint {
       .filter((it) => it instanceof ColumnExpression)
       .map((it) => it.column);
     return this.name || this.table + "_" + columns.join("_") + "_check";
+  }
+}
+
+export class UpdateTableExpression extends TableModificationExpression {
+  constructor(
+    parseInfo: ParseInfo,
+    readonly name: string,
+    readonly values: Array<Expression>,
+    readonly returning: Array<TargetExpression> = [],
+    readonly where?: Expression,
+  ) {
+    super(parseInfo);
+  }
+
+  toString() {
+    let str = `UPDATE TABLE ${this.name}\nSET\n${this.values.map((it) => "   " + it).join(",")}`;
+    if (this.where) {
+      str += "\nWHERE " + this.where;
+    }
+    if (this.returning.length) {
+      str += "\n" + this.returning.join(",");
+    }
+    return str;
   }
 }
 
@@ -553,7 +579,12 @@ export class CreateTableExpression extends TableModificationExpression {
     if (this.query) {
       return `CREATE TABLE ${this.name} AS ${this.query}`;
     }
-    return `CREATE TABLE ${this.name}(\n  ${this.columns.map((it) => it.toString()).join("  \n")}\n)${this.using ? `"${this.using}"` : ""}`;
+    let str = `CREATE TABLE ${this.name} (\n${this.columns.map((it) => "   " + it.toString()).join(",\n")}`;
+    if (this.constraints.length) {
+      str += `,\n${this.constraints.map((it) => "   " + it.toString()).join(",\n")}`;
+    }
+    str += `\n)${this.using ? `"${this.using}"` : ""};`;
+    return str;
   }
 
   children(): Expression[] {

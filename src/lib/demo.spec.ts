@@ -50,7 +50,7 @@ from
 group by
   1
 order by
-  2 desc, 1
+  2 desc, 1, length(playlist.name)
     `);
     expect(data).toEqual([
       ["Music", 198],

@@ -112,7 +112,7 @@ export class StatementError extends Error {
     readonly statement: PreparedStatment,
     readonly options?: ErrorOptions,
   ) {
-    super(message + statement.errors.join(","), options);
+    super(message + " " + statement.errors.join(","), options);
   }
 }
 

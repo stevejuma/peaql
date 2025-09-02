@@ -83,6 +83,10 @@ export class Decimal {
     }
   }
 
+  toJSON() {
+    return this.toString();
+  }
+
   valueOf() {
     if (this.num === undefined) {
       return undefined;
