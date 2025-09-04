@@ -209,8 +209,8 @@ describe("Joins", () => {
     expect(normalizeColumns(columns)).toEqual([
       { name: "position_id", type: Number },
       { name: "title", type: String },
-      { name: "department_id", type: Number },
-      { name: "department_name", type: String },
+      { name: "departments.department_id", type: Number },
+      { name: "departments.department_name", type: String },
     ]);
     expect(data).toEqual([
       [1, "Manager", 30, "HR"],

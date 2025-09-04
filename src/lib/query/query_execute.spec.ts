@@ -3,6 +3,7 @@ import { Context } from "./context";
 import { AttributeColumn } from "./nodes";
 import { Table } from "./models";
 import { INTEGER, normalizeColumns } from "./types";
+import { DateTime } from "luxon";
 
 describe("Update table", () => {
   test("Update single row", () => {
@@ -51,19 +52,101 @@ describe("Update table", () => {
 });
 
 describe("Create table", () => {
-  test("Creates timestamp", () => {
+  test("Create timestamp", () => {
     const context = Context.create();
-    context.execute(`
-        CREATE TABLE genre
-        (
-            genre_id INT NOT NULL,
-            name VARCHAR(120),
-            CONSTRAINT genre_pkey PRIMARY KEY  (genre_id)
-        );
-        INSERT INTO genre (genre_id, name) VALUES
-        (1, 'Rock'),
-        (2, 'Jazz');
-      `);
+    const [columns, data] = context.execute(`
+          CREATE TABLE timezones
+          (
+              id INT NOT NULL,
+              created_at TIMESTAMP
+          );
+          INSERT INTO timezones (id, created_at) VALUES
+          (1, '2025-12-12')
+          RETURNING *;
+        `);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "id", type: INTEGER },
+      { name: "created_at.date", type: DateTime },
+      { name: "created_at.year", type: Number },
+      { name: "created_at.month", type: Number },
+      { name: "created_at.day", type: Number },
+    ]);
+    expect(data).toEqual([
+      [1, DateTime.fromISO("2025-12-12T00:00:00.000+00:00"), 2025, 12, 12],
+    ]);
+  });
+
+  test("Fails on invalid default value", () => {
+    const context = Context.create();
+    expect(() => {
+      context.execute(`
+          CREATE TABLE genre
+          (
+              genre_id INT NOT NULL,
+              name VARCHAR(120) DEFAULT true,
+              CONSTRAINT genre_pkey PRIMARY KEY  (genre_id)
+          );
+          INSERT INTO genre (genre_id, name) VALUES
+          (1, 'Rock'),
+          (2, 'Jazz');
+        `);
+    }).toThrow(`Invalid type boolean for string column "genre"."name"`);
+  });
+
+  test("Inserts value with default", () => {
+    const context = Context.create();
+    const [columns, data] = context.execute(`
+      CREATE TABLE genre
+      (
+          genre_id INT NOT NULL,
+          name VARCHAR(120) DEFAULT 'Pop'
+      );
+      INSERT INTO genre (genre_id) VALUES
+      (1)
+    `);
+
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "genre_id", type: INTEGER },
+      { name: "name", type: String },
+    ]);
+    expect(data).toEqual([[1, "Pop"]]);
+  });
+
+  test("Inserts value with default returning *", () => {
+    const context = Context.create();
+    const [columns, data] = context.execute(`
+      CREATE TABLE genre
+      (
+          genre_id INT NOT NULL,
+          name VARCHAR(120) DEFAULT 'Pop'
+      );
+      INSERT INTO genre (genre_id) VALUES
+      (1)
+      RETURNING *
+    `);
+
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "genre_id", type: INTEGER },
+      { name: "name", type: String },
+    ]);
+    expect(data).toEqual([[1, "Pop"]]);
+  });
+
+  test("Inserts with returning", () => {
+    const context = Context.create();
+    const [columns, data] = context.execute(`
+      CREATE TABLE genre
+      (
+          genre_id INT NOT NULL,
+          name VARCHAR(120) DEFAULT 'Pop'
+      );
+      INSERT INTO genre (genre_id, name) VALUES
+      (1, 'Rock')
+      RETURNING name
+    `);
+
+    expect(normalizeColumns(columns)).toEqual([{ name: "name", type: String }]);
+    expect(data).toEqual([["Rock"]]);
   });
 
   test("Creates timestamp", () => {

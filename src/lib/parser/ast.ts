@@ -430,6 +430,7 @@ export class ColumnDefinition {
     readonly primaryKey: boolean,
     readonly isNotNull: boolean,
     readonly check?: Expression,
+    readonly defaultValue?: Expression,
   ) {}
 
   toString() {
@@ -597,13 +598,19 @@ export class InsertExpression extends TableModificationExpression {
     parseInfo: ParseInfo,
     readonly table: string,
     readonly columns: Array<string>,
+    readonly returning: Array<TargetExpression> = [],
     readonly values: Expression[][],
   ) {
     super(parseInfo);
   }
 
   toString() {
-    return `INSERT INTO ${this.table} (${this.columns.join(",")})\nVALUES(${this.values.join(",")});`;
+    let str = `INSERT INTO ${this.table} (${this.columns.join(",")}) VALUES\n${this.values.map((it) => `(${it.join(",")})`).join(",\n")}`;
+    if (this.returning.length) {
+      str += "\n" + this.returning.join(",");
+    }
+    str += ";";
+    return str;
   }
 }
 

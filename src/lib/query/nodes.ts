@@ -31,6 +31,7 @@ import {
   ColumnExpression,
   CreateTableExpression,
   Expression,
+  FunctionExpression,
   InsertExpression,
   Op,
   OverExpression,
@@ -260,6 +261,7 @@ export class EvalInsert extends EvalNode {
     readonly node: InsertExpression,
     readonly table: Table,
     readonly values: Record<string, EvalNode>[],
+    readonly returning: Array<EvalNode>,
   ) {
     super(EvalInsert);
   }
@@ -275,6 +277,8 @@ export class EvalInsert extends EvalNode {
     if (!Array.isArray(data)) {
       throw new InternalError(`Invalid data for table "${this.table.name}"`);
     }
+
+    const inserted: Array<unknown> = [];
 
     this.values.forEach((item) => {
       const row: Record<string, unknown> = {};
@@ -312,8 +316,21 @@ export class EvalInsert extends EvalNode {
       }
 
       rows.push(record);
-      data.push(row);
+      inserted.push(row);
     });
+
+    data.push(...inserted);
+
+    if (this.returning.length) {
+      return [
+        this.returning.map((col) => {
+          return { name: (col as EvalTarget).name, type: col.type };
+        }),
+        inserted.map((row) => {
+          return this.returning.map((col) => col.resolve(row));
+        }),
+      ];
+    }
 
     const keys = Object.keys(columns).map((k) => Symbol(k));
     return [
@@ -573,7 +590,7 @@ export class EvalCoalesce extends EvalNode {
   resolve(context: any) {
     for (const arg of this.args) {
       const value = arg.resolve(context);
-      if (value) {
+      if (!isNull(value)) {
         return value;
       }
     }
@@ -1392,14 +1409,24 @@ export class EvalCreateTable extends EvalNode {
   constructor(
     readonly context: Context,
     readonly node: CreateTableExpression,
-    readonly columns: Array<{ name: symbol; type: DType }>,
+    readonly columns: Array<{
+      name: symbol;
+      type: DType;
+      defaultValue?: EvalNode;
+    }>,
     readonly data?: EvalQuery,
   ) {
     super(EvalCreateTable);
-    const cols = this.columns.map(
-      (it) => new AttributeColumn(it.name.description, it.type),
-    );
-    this.table = Table.create(this.node.name, ...cols);
+    const cols: Record<string, EvalNode> = {};
+
+    this.columns.forEach((col) => {
+      let expr: EvalNode = new AttributeColumn(col.name.description, col.type);
+      if (col.defaultValue) {
+        expr = new EvalCoalesce([expr, col.defaultValue]);
+      }
+      cols[col.name.description] = expr;
+    });
+    this.table = new Table(this.node.name, cols);
     context.compiler.stack.push(this.table);
     for (const column of node.columns) {
       if (column.isNotNull) {

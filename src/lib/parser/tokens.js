@@ -91,6 +91,16 @@ import {
   returning,
   _delete,
   drop,
+  without,
+  generated,
+  always,
+  identity,
+  _default,
+  comment,
+  column,
+  index,
+  alter,
+  add,
 } from "./bql.grammar.terms";
 
 const keywordMap = {
@@ -183,6 +193,16 @@ const keywordMap = {
   returning,
   delete: _delete,
   drop,
+  without,
+  generated,
+  always,
+  identity,
+  default: _default,
+  comment,
+  column,
+  index,
+  alter,
+  add,
 };
 const newline = 10,
   carriage = 13,
@@ -217,7 +237,7 @@ export const properties = new ExternalTokenizer((input) => {
   const [after, offset] = readIdentifier(input, 0, 1);
 
   if (
-    ["NOT"].includes(before.toUpperCase()) &&
+    ["NOT", "IF"].includes(before.toUpperCase()) &&
     after.toUpperCase() === "EXISTS"
   ) {
     return input.acceptToken(exists, offset);

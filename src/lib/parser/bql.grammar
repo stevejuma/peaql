@@ -3,7 +3,18 @@
 }
 
 statement {
-    Statement Unions? | CreateTable | UpdateTable | Insert | Delete | DropTable
+    Statement Unions? | CreateTable | UpdateTable | Insert | Delete | DropTable | Comment | CreateIndex | AlterTable
+}
+
+AlterTable {
+  alter table IfExists { if exists }? Identifier
+  AddConstraint {
+    add Constraint
+  }
+}
+
+Comment {
+    comment on Type { column | table } Identifier ("." Identifier)? is String
 }
 
 Option {
@@ -521,6 +532,10 @@ Boolean {
 
 Null { null }
 
+CreateIndex {
+  create Unique { unique }? index Name { Identifier }? on Identifier "(" targets ")"
+}
+
 CreateTable {
     create table 
     NotExists { if not exists }?
@@ -553,6 +568,7 @@ Insert {
     Columns { '('  Identifier ("," Identifier)*  ')' } ? 
     values
     Values ("," Values)*
+    Returning { returning targets }?
 }
 
 Delete {
@@ -576,7 +592,7 @@ Constraint {
             SourceColumns { "(" (Identifier  ("," Identifier)* )")" }
             references
             TargetTable { Identifier }
-            TargetColumns { "(" (Identifier  ("," Identifier)* )")" }
+            TargetColumns { "(" (Identifier  ("," Identifier)* )")" }?
             }
         )
     )
@@ -588,8 +604,16 @@ ColumnType {
     Size { "(" Integer ("," Integer)? ")" }?
     Array { "[]" }?
     Options {
-        (primary key)? (not null)?
+        Opt { 
+          (primary key) |
+          (generated ( always | by default) as identity) |
+          ((with | without) time zone) |
+          (not null) 
+        }*
     }
+    Default {
+      default (constant | Function)
+    }?
     Check? 
 }
 
@@ -621,7 +645,9 @@ keyword {
     insert | into | values | current | on |
     case | when | then | else | end | union  | except | intersect |
     primary | key | array | cast | if | constraint  | foreign | references | unique | check |
-    update | returning | delete | drop
+    update | returning | delete | drop |  without | generated | always | identity | default | 
+    comment | column | index | add | alter
+
 }
 
 @external tokens properties from "./tokens" { all, exists }
@@ -646,7 +672,8 @@ keyword {
     insert, into, values, current, on,
     case, when, then, else, end , union, except, intersect,
     primary, key, array, cast, if, constraint, foreign, references, unique, check,
-    update, returning, delete, drop
+    update, returning, delete, drop, without , generated , always , identity , default , comment,
+    column, index, add, alter
 }
 
 Identifier {

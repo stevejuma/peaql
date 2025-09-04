@@ -390,18 +390,21 @@ export class Parser {
           `syntax error at or near: "${this.content(node)}"`,
         ),
       );
+    } else if (["CreateIndex", "AlterTable", "Comment"].includes(node.name)) {
+      // Not yet implemented
+      return false;
     } else if (node.name === "ExprCase") {
       this.add(new CaseExpression(parseInfo, []));
     } else if (node.name === "Insert") {
       const columns = (
         node.node.getChild("Columns")?.getChildren("Identifier") ?? []
       ).map((it) => this.content(it));
-
       this.add(
         new InsertExpression(
           parseInfo,
           this.content(node.node.getChild("Identifier")),
           columns,
+          [],
           [],
         ),
       );
@@ -707,6 +710,28 @@ export class Parser {
       if (this.top instanceof InsertExpression) {
         this.top.values.push(expressions);
       }
+    } else if (node.name === "Insert") {
+      const columns: Array<TargetExpression> = [];
+      let child = node.node.getChild("Returning")?.lastChild;
+      while (child) {
+        if (child.name === "Target") {
+          const expr = this.stack.pop();
+          if (expr instanceof TargetExpression) {
+            columns.push(expr);
+          } else {
+            throw new CompilationError(
+              `Invalid UpdateTable expression, did not find expected TargetExpression found`,
+              expr,
+            );
+          }
+        } else {
+          throw new CompilationError(
+            `Invalid UpdateTable expression, Expected Target found ${child.name}`,
+          );
+        }
+        child = child.prevSibling;
+      }
+      (this.top as InsertExpression).returning.push(...columns.reverse());
     } else if (node.name === "UpdateTable") {
       const tableName = this.content(node.node.getChild("Identifier"));
       const values: Array<Expression> = [];
@@ -777,6 +802,7 @@ export class Parser {
               options.includes("PRIMARY KEY"),
               options.includes("NOT NULL"),
               child.getChild("Check") ? this.stack.pop() : undefined,
+              child.getChild("Default") ? this.stack.pop() : undefined,
             ),
           );
         } else if (child.name === "Constraint") {

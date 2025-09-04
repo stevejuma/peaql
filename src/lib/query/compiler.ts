@@ -70,7 +70,7 @@ import {
 } from "./nodes";
 import { SubQueryTable, Table } from "./models";
 import { Context } from "./context";
-import { NULL, structureFor, typeFor } from "./types";
+import { isSameType, NULL, structureFor, typeFor } from "./types";
 import { ASTERISK, DType, EvalNode, isNull, typeName } from "./types";
 import "./query_env";
 
@@ -838,7 +838,7 @@ export class Compiler {
           new ColumnExpression(node.parseInfo, node.column),
           column,
         ),
-        column,
+        `${node.column}.${column}`,
       );
     });
   }
@@ -1630,8 +1630,8 @@ export class Compiler {
     this.table = node.name;
     const columns: Record<string, EvalNode> = {};
     const where = this.compileExpression(node.where);
-    const returning: Array<EvalNode> = node.returning.map((it) =>
-      this.compileExpression(it),
+    const returning: Array<EvalNode> = this.expandTargets(node.returning).map(
+      (it) => this.compileExpression(it),
     );
 
     for (const expr of node.values) {
@@ -1661,7 +1661,11 @@ export class Compiler {
   }
 
   compileCreateTable(node: CreateTableExpression) {
-    const columns: Array<{ name: symbol; type: DType }> = [];
+    const columns: Array<{
+      name: symbol;
+      type: DType;
+      defaultValue?: EvalNode;
+    }> = [];
     const query = node.query ? this.compileQuery(node.query) : undefined;
     if (this.context.tables.has(node.name)) {
       if (node.ifNotExists) {
@@ -1674,10 +1678,20 @@ export class Compiler {
     }
     node.columns.forEach((col) => {
       const type = typeFor(col.type);
+      const expr = col.defaultValue
+        ? this.compileExpression(col.defaultValue)
+        : undefined;
       if (type) {
+        if (expr && !isSameType(type, expr.type)) {
+          throw new CompilationError(
+            `Invalid type ${typeName(expr.type)} for ${typeName(type)} column "${node.name}"."${col.name}"`,
+            col.defaultValue,
+          );
+        }
         columns.push({
           name: Symbol(col.name),
           type: col.isArray ? [type] : type,
+          defaultValue: expr,
         });
       } else {
         throw new CompilationError(`unrecognized type "${col.type}"`, node);
@@ -1694,14 +1708,15 @@ export class Compiler {
   }
 
   compileInsert(node: InsertExpression) {
-    const table = this.context.tables.get(node.table);
-    if (!table) {
-      throw new CompilationError(`table "${node.table}" does not exist`, node);
-    }
+    this.table = node.table;
+
+    const returning: Array<EvalNode> = this.expandTargets(node.returning).map(
+      (it) => this.compileExpression(it),
+    );
 
     const columns = node.columns.length
       ? node.columns
-      : [...table.columns.keys()];
+      : [...this.table.columns.keys()];
     const row = node.values.find((it) => it.length != columns.length);
     if (row) {
       throw new CompilationError(
@@ -1711,9 +1726,10 @@ export class Compiler {
     }
 
     const rows: Record<string, EvalNode>[] = [];
-    const initialColumns = [...table.columns.keys()].reduce(
+    const initialColumns = [...this.table.columns.keys()].reduce(
       (acc: Record<string, EvalNode>, key) => {
-        acc[key] = new EvalConstant(null);
+        const column = this.table.getColumn(key);
+        acc[key] = column;
         return acc;
       },
       {},
@@ -1733,7 +1749,7 @@ export class Compiler {
       });
       rows.push(row);
     });
-    return new EvalInsert(node, table, rows);
+    return new EvalInsert(node, this.table, rows, returning);
   }
 }
 
