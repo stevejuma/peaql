@@ -1,6 +1,6 @@
 {
   "name": "peaql",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "PeaQL - A query language for data",
   "type": "module",
   "main": "dist/index.js",
