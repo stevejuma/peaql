@@ -350,8 +350,12 @@ CastExpr {
     cast "(" expr as Identifier ")"
 }
 
+BracketExpr {
+    "(" expr ")" (("." Function)+ |  TypeCast { Cast })?
+}
+
 factor {
-   unary | "(" expr ")" TypeCast { Cast }? 
+   unary | BracketExpr 
 }
 
 unary {
@@ -385,12 +389,16 @@ atom {
    | Function
 }
 
+FunctionName {
+    Identifier | if
+}
+
 Function {
     (
-      Identifier "(" Distinct (Column | Attribute) ")" |
-      Identifier "(" (expr ("," expr)*)? ")" |
-      Identifier "(" ASTERISK ")" |
-      Identifier "(" Statement Unions? ")"
+      FunctionName "(" Distinct (Column | Attribute) ")" |
+      FunctionName "(" (expr ("," expr)*)? ")" |
+      FunctionName "(" ASTERISK ")" |
+      FunctionName "(" Statement Unions? ")"
     )
     Filter {
        filter

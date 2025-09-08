@@ -521,7 +521,7 @@ export class Parser {
       this.add(
         new FunctionExpression(
           parseInfo,
-          this.content(node.node.getChild("Identifier")),
+          this.content(node.node.getChild("FunctionName")),
           [],
           node.node.getChild("Distinct") ? true : false,
         ),
@@ -651,11 +651,28 @@ export class Parser {
           expr,
         );
       }
-    } else if (node.name === "TypeCast") {
-      this.stack[this.stack.length - 1] = this.cast(
-        node.node.getChild("Cast"),
-        this.stack[this.stack.length - 1],
+    } else if (node.name === "BracketExpr") {
+      const fns = (node.node.getChildren("Function") ?? []).map(() =>
+        this.stack.pop(),
       );
+      if (fns.length) {
+        let expr = this.stack.pop();
+        for (const fn of fns) {
+          expr = new AttributeExpression(
+            parseInfo,
+            expr,
+            fn as CastExpression | FunctionExpression,
+          );
+        }
+        this.add(expr);
+      }
+      const castNode = node.node.getChild("TypeCast")?.getChild("Cast");
+      if (castNode) {
+        this.stack[this.stack.length - 1] = this.cast(
+          castNode,
+          this.stack[this.stack.length - 1],
+        );
+      }
     } else if (node.name === "Else") {
       const expr = this.stack.pop();
       if (this.top instanceof CaseExpression) {

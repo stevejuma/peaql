@@ -280,6 +280,14 @@ describe("Simple Queries", () => {
     expect(data).toEqual([["1.000"], ["2.030"]]);
   });
 
+  test("SELECT (a).toFixed(3)", () => {
+    const [columns, data] = context.execute(`SELECT (a).toFixed(3)`);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "a.toFixed(3)", type: String },
+    ]);
+    expect(data).toEqual([["1.000"], ["2.030"]]);
+  });
+
   test("SELECT a.toFixed(3)::text as str", () => {
     const [columns, data] = context.execute(`SELECT a.toFixed(3)::text as str`);
     expect(normalizeColumns(columns)).toEqual([{ name: "str", type: String }]);
