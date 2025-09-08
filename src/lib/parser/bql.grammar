@@ -195,15 +195,15 @@ expr {
 }
 
 ExprAnd {
-    expr !and AND { and } expr 
+    expr !and AND { and | "&&" } expr 
 }
 
 ExprOr {
-    expr !or OR { or} expr 
+    expr !or OR { or | "||" } expr 
 }
 
 ExprNot {
-    !not NOT { not } expr 
+    !not NOT { not | "!" } expr 
 }
 
 ExprCase {

@@ -331,3 +331,42 @@ describe("Simple Queries", () => {
     ]);
   });
 });
+
+describe("Boolean Queries", () => {
+  const context = Context.create();
+  context.execute(`
+    CREATE TABLE t1
+    (
+        id INT NOT NULL,
+        name TEXT,
+        active BOOLEAN
+    );
+    INSERT INTO t1 (id, name, active) VALUES
+    (1, 'peter', true),
+    (1, 'pan', false);
+  `);
+
+  test("WHERE boolean", () => {
+    const [columns, data] = context.execute(`
+        SELECT name FROM t1 where active
+    `);
+    expect(normalizeColumns(columns)).toEqual([{ name: "name", type: String }]);
+    expect(data).toEqual([["peter"]]);
+  });
+
+  test("WHERE !boolean", () => {
+    const [columns, data] = context.execute(`
+        SELECT name FROM t1 where !active
+    `);
+    expect(normalizeColumns(columns)).toEqual([{ name: "name", type: String }]);
+    expect(data).toEqual([["pan"]]);
+  });
+
+  test("concat", () => {
+    const [, data] = context.execute(`
+        SELECT name || id from t1
+    `);
+
+    expect(data).toEqual([["peter1"], ["pan1"]]);
+  });
+});

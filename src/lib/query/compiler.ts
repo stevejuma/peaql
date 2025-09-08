@@ -895,6 +895,24 @@ export class Compiler {
       }
     } else if (node instanceof BooleanExpression) {
       const args = node.args.map((it) => this.compileExpression(it));
+      if (["AND", "OR"].includes(node.op)) {
+        if (args.some((it) => it.type !== Boolean)) {
+          const operator = findOperator(node.op, args);
+          if (operator) {
+            if (
+              args.length == 2 &&
+              args[0] instanceof EvalConstant &&
+              args[1] instanceof EvalConstant
+            ) {
+              return new EvalConstant(
+                operator.create(...args).resolve(),
+                operator.output,
+              );
+            }
+            return operator.create(...args);
+          }
+        }
+      }
       if (node.op === "AND") {
         return new EvalAnd(args);
       } else if (node.op === "OR") {

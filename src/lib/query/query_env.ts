@@ -147,6 +147,15 @@ function positive(a: unknown) {
   return a;
 }
 
+binaryOp("OR", binaryConcat, [Number, Number], String);
+binaryOp("OR", binaryConcat, [Number, String], String);
+binaryOp("OR", binaryConcat, [String, Number], String);
+binaryOp("OR", binaryConcat, [Number, String], String);
+binaryOp("OR", binaryConcat, [String, String], String);
+function binaryConcat(a: any, b: any) {
+  return a.toString() + b.toString();
+}
+
 binaryOp("-", minus, [INTEGER, INTEGER], INTEGER);
 binaryOp("-", minus, [Number, Number], Number);
 binaryOp("-", minus, [Number, Decimal], Decimal);
@@ -810,27 +819,6 @@ createFunction("today", [], DateTime, today, true);
 createFunction("now", [], DateTime, today, true);
 function today() {
   return DateTime.now();
-}
-
-createFunction("root", [String], String, root, true);
-createFunction("root", [String, Number], String, root, true);
-function root(account: string, count: number = 1) {
-  return account.split(":").slice(0, count).join(":");
-}
-
-createFunction("parent", [String], String, parent, true);
-export function parent(account: string) {
-  const idx = account.lastIndexOf(":");
-  if (idx !== -1) {
-    return account.substring(0, idx);
-  }
-  return "";
-}
-
-createFunction("leaf", [String], String, leaf, true);
-export function leaf(account: string) {
-  const parentEnd = account.lastIndexOf(":");
-  return parentEnd > 0 ? account.slice(parentEnd + 1) : account;
 }
 
 createFunction("meta", [Object], Object, entryMeta, true);
