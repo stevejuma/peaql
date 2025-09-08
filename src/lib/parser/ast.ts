@@ -794,7 +794,13 @@ export class AttributeExpression extends Expression {
   }
 
   public toString() {
-    return this.operand.toString() + "." + this.name;
+    let str = "";
+    if (this.operand instanceof BooleanExpression) {
+      str += `(${this.operand})`;
+    } else {
+      str += this.operand.toString();
+    }
+    return str + "." + this.name;
   }
 }
 
