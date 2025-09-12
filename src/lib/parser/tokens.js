@@ -1,6 +1,7 @@
 import { ExternalTokenizer } from "@lezer/lr";
 import {
   set,
+  to,
   primary,
   key,
   _with,
@@ -106,6 +107,7 @@ import {
 const keywordMap = {
   set,
   union,
+  to,
   intersect,
   except,
   with: _with,

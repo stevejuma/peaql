@@ -4,6 +4,8 @@ import {
   Expression,
   StatementExpression,
   TableModificationExpression,
+  ColumnExpression,
+  ListExpression,
 } from "../parser";
 import { Compiler, CompilerOptions } from "./compiler";
 import { Table } from "./models";
@@ -78,7 +80,9 @@ export class Context {
       (acc: Record<string, Constant | Array<Constant>>, option) => {
         if (option.value instanceof LiteralExpression) {
           acc[option.name] = option.value.value;
-        } else {
+        } else if (option.value instanceof ColumnExpression) {
+          acc[option.name] = option.value.name;
+        } else if (option.value instanceof ListExpression) {
           acc[option.name] = option.value.values.map((it) => it.value);
         }
         return acc;

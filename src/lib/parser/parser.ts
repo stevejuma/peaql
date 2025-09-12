@@ -214,45 +214,19 @@ export function parseDuration(intervalStr: string): Duration {
   return Duration.fromObject(result);
 }
 
+export function tryParseDuration(intervalStr: string | null) {
+  try {
+    return parseDuration(intervalStr);
+  } catch (_) {
+    // do nothing
+  }
+}
+
 export function parseQuery(
   query: string,
 ): [Expression, ParseError[], OptionExpression[]] {
   const parser = new Parser(query);
   return [parser.query, parser.errors, parser.options];
-}
-
-export function parseDurationx(interval: string): Duration {
-  const regex =
-    /(?:(-?\s*\d+)\s*years?)?\s*(?:(-?\s*\d+)\s*quarters?)?\s*(?:(-?\s*\d+)\s*mont?h?s?)?\s*(?:(-?\s*\d+)\s*weeks?)?\s*(?:(-?\s*\d+)\s*days?)?\s*(?:(-?\s*\d+):(\d+):(\d+(?:\.\d+)?))?/;
-  const match = interval.match(regex);
-
-  if (!match) {
-    return Duration.fromISO(interval);
-  }
-
-  const [, years, quarters, months, weeks, days, hours, minutes, seconds] =
-    match.map((v) =>
-      v === undefined ? 0 : parseFloat(v.replaceAll(/\s+/g, "")),
-    );
-
-  const duration: Record<string, number> = {
-    years,
-    quarters,
-    months,
-    weeks,
-    days,
-    hours,
-    minutes,
-    seconds,
-  };
-
-  Object.keys(duration).forEach((key) => {
-    if (!duration[key]) {
-      delete duration[key];
-    }
-  });
-
-  return Duration.fromObject(duration);
 }
 
 export class Parser {
@@ -479,15 +453,47 @@ export class Parser {
     } else if (node.name === "ExprNot") {
       this.add(new BooleanExpression(parseInfo, "NOT", []));
     } else if (node.name === "Column") {
-      this.add(
-        this.cast(
-          node.node.getChild("Cast"),
-          new ColumnExpression(
-            parseInfo,
-            this.content(node.node.getChild("Identifier")),
-          ),
-        ),
+      const columnName = this.content(
+        node.node.getChild("Identifier") ||
+          node.node.getChild("BoxedIdentifier"),
       );
+      const quote = columnName.charAt(0);
+      const column = new ColumnExpression(parseInfo, columnName);
+      if (
+        ['"', "`", "["].includes(quote) &&
+        ['"', "`", "]"].includes(columnName.charAt(columnName.length - 1)) &&
+        !node.node.getChild("Cast")
+      ) {
+        const option = this.options.find(
+          (opt) => opt.name.toLowerCase() === "identifier_quoting",
+        );
+        if (option) {
+          const expected = ["quoted", "backtick", "bracket", "auto"];
+          const value = option.value.toString().toLowerCase();
+          const map: Record<string, string> = {
+            '"': "quoted",
+            "`": "backtick",
+            "[": "bracket",
+          };
+          if (value) {
+            if (!expected.includes(value)) {
+              this.errors.push(
+                this.error(
+                  node,
+                  `Invalid value for option: identifier_quoting expected: ${expected} got ${value}`,
+                ),
+              );
+            } else if (value !== "auto") {
+              if (map[quote] !== value) {
+                // Convert this into a string literal
+                this.add(new LiteralExpression(parseInfo, column.name));
+                return;
+              }
+            }
+          }
+        }
+      }
+      this.add(this.cast(node.node.getChild("Cast"), column));
     } else if (node.name === "Wildcard") {
       this.add(
         new WildcardExpression(
@@ -700,20 +706,15 @@ export class Parser {
       }
     } else if (node.name === "Option") {
       const expr = this.stack.pop();
-      if (expr instanceof LiteralExpression || expr instanceof ListExpression) {
+      if (
+        expr instanceof LiteralExpression ||
+        expr instanceof ListExpression ||
+        expr instanceof ColumnExpression
+      ) {
         this.options.push(
           new OptionExpression(
             parseInfo,
-            readString(
-              this.content(
-                node.node.getChild("Identifier") ??
-                  node.node.getChild("String") ??
-                  node.node.getChild("Keyword"),
-              ) ||
-                this.content(node)
-                  .replaceAll(/^SET\s*([^=]+).*/gi, "$1")
-                  .trim(),
-            ),
+            readString(this.content(node.node.getChild("OptionName"))),
             expr,
           ),
         );

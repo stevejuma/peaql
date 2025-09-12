@@ -3,7 +3,7 @@
 
 import { DateTime, Duration } from "luxon";
 import { Decimal, isValidNumber, parseNumber } from "../decimal";
-import { Expression } from "../parser";
+import { Expression, tryParseDuration } from "../parser";
 
 export const NULL = class {
   toString() {
@@ -256,6 +256,10 @@ registerType(DateTime, "datetime", {
   cast: (obj) => {
     if (typeof obj === "string") {
       return parseDateTime(obj);
+    } else if (typeof obj === "number") {
+      return DateTime.fromMillis(obj);
+    } else if (obj instanceof Decimal) {
+      return DateTime.fromMillis(obj.number);
     }
   },
 });
@@ -269,7 +273,20 @@ registerType(Decimal, "numeric", {
     }
   },
 });
-registerType(Duration, "duration");
+registerType(Duration, "duration", {
+  cast: (obj) => {
+    if (obj instanceof Duration) {
+      return obj;
+    }
+    if (typeof obj === "string") {
+      return tryParseDuration(obj);
+    } else if (typeof obj === "number") {
+      return Duration.fromMillis(obj);
+    } else if (obj instanceof Decimal) {
+      return Duration.fromMillis(obj.number);
+    }
+  },
+});
 registerType(VARARG, "vararg");
 registerType(LIST, "list", {
   isType: (obj) => obj instanceof Set || Array.isArray(obj),

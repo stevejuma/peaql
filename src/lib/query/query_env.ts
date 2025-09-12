@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { DateTime, DateTimeOptions, DateTimeUnit, Duration } from "luxon";
-import { OperationalError } from "../errors";
+import {
+  NotSupportedError,
+  OperationalError,
+} from "../errors";
 import { Decimal, isValidNumber, NumberSource } from "../decimal";
 
 import {
@@ -16,6 +19,8 @@ import {
   DType,
   INTEGER,
   isSameType,
+  typeCast,
+  parseDateTime,
 } from "./types";
 
 import {
@@ -350,12 +355,24 @@ export function in_(a: any, b: any): boolean {
   return false;
 }
 
+binaryOp(">", gt, [String, DateTime], Boolean);
+binaryOp(">", gt, [String, Duration], Boolean);
 binaryOp(">", gt, [Number, Number], Boolean);
+binaryOp(">", gt, [Number, DateTime], Boolean);
 binaryOp(">", gt, [Number, Decimal], Boolean);
+binaryOp(">", gt, [Number, Duration], Boolean);
 binaryOp(">", gt, [Decimal, Number], Boolean);
+binaryOp(">", gt, [Decimal, DateTime], Boolean);
 binaryOp(">", gt, [Decimal, Decimal], Boolean);
+binaryOp(">", gt, [Decimal, Duration], Boolean);
 binaryOp(">", gt, [DateTime, DateTime], Boolean);
+binaryOp(">", gt, [DateTime, String], Boolean);
+binaryOp(">", gt, [DateTime, Number], Boolean);
+binaryOp(">", gt, [DateTime, Decimal], Boolean);
 binaryOp(">", gt, [Duration, Duration], Boolean);
+binaryOp(">", gt, [Duration, String], Boolean);
+binaryOp(">", gt, [Duration, Number], Boolean);
+binaryOp(">", gt, [Duration, Decimal], Boolean);
 export function gt(a: any, b: any) {
   if (typeof a === "number" && typeof b === "number") {
     return a > b;
@@ -368,17 +385,67 @@ export function gt(a: any, b: any) {
   } else if (a instanceof DateTime && b instanceof DateTime) {
     return a.toMillis() > b.toMillis();
   } else if (a instanceof Duration && b instanceof Duration) {
-    return a.toMillis() > b.toMillis();
+    return a.toMillis() >= b.toMillis();
+  } else if (
+    [a, b].every(
+      (v) =>
+        v instanceof DateTime ||
+        ["number", "string"].includes(typeof v) ||
+        v instanceof Decimal,
+    )
+  ) {
+    const aDt: DateTime | null =
+      a instanceof DateTime ? a : (typeCast(a, DateTime) as DateTime);
+    const bDt: DateTime | null =
+      b instanceof DateTime ? b : (typeCast(b, DateTime) as DateTime);
+
+    if (!aDt || !bDt) {
+      throw new NotSupportedError(
+        `Unsupported operator(>): (${typeName(a)} > ${typeName(b)})`,
+      );
+    }
+    return aDt.toMillis() > bDt.toMillis();
+  } else if (
+    [a, b].every(
+      (v) =>
+        v instanceof Duration ||
+        ["number", "string"].includes(typeof v) ||
+        v instanceof Decimal,
+    )
+  ) {
+    const aDt: Duration | null =
+      a instanceof Duration ? a : (typeCast(a, Duration) as Duration);
+    const bDt: Duration | null =
+      b instanceof Duration ? b : (typeCast(b, Duration) as Duration);
+
+    if (!aDt || !bDt) {
+      throw new NotSupportedError(
+        `Unsupported operator(>): (${typeName(a)} > ${typeName(b)})`,
+      );
+    }
+    return aDt.toMillis() > bDt.toMillis();
   }
   return null;
 }
 
+binaryOp(">=", gte, [String, DateTime], Boolean);
+binaryOp(">=", gte, [String, Duration], Boolean);
 binaryOp(">=", gte, [Number, Number], Boolean);
+binaryOp(">=", gte, [Number, DateTime], Boolean);
 binaryOp(">=", gte, [Number, Decimal], Boolean);
+binaryOp(">=", gte, [Number, Duration], Boolean);
 binaryOp(">=", gte, [Decimal, Number], Boolean);
+binaryOp(">=", gte, [Decimal, DateTime], Boolean);
 binaryOp(">=", gte, [Decimal, Decimal], Boolean);
+binaryOp(">=", gte, [Decimal, Duration], Boolean);
 binaryOp(">=", gte, [DateTime, DateTime], Boolean);
+binaryOp(">=", gte, [DateTime, String], Boolean);
+binaryOp(">=", gte, [DateTime, Number], Boolean);
+binaryOp(">=", gte, [DateTime, Decimal], Boolean);
 binaryOp(">=", gte, [Duration, Duration], Boolean);
+binaryOp(">=", gte, [Duration, String], Boolean);
+binaryOp(">=", gte, [Duration, Number], Boolean);
+binaryOp(">=", gte, [Duration, Decimal], Boolean);
 export function gte(a: any, b: any) {
   if (typeof a === "number" && typeof b === "number") {
     return a >= b;
@@ -392,16 +459,66 @@ export function gte(a: any, b: any) {
     return a.toMillis() >= b.toMillis();
   } else if (a instanceof Duration && b instanceof Duration) {
     return a.toMillis() >= b.toMillis();
+  } else if (
+    [a, b].every(
+      (v) =>
+        v instanceof DateTime ||
+        ["number", "string"].includes(typeof v) ||
+        v instanceof Decimal,
+    )
+  ) {
+    const aDt: DateTime | null =
+      a instanceof DateTime ? a : (typeCast(a, DateTime) as DateTime);
+    const bDt: DateTime | null =
+      b instanceof DateTime ? b : (typeCast(b, DateTime) as DateTime);
+
+    if (!aDt || !bDt) {
+      throw new NotSupportedError(
+        `Unsupported operator(>): (${typeName(a)} > ${typeName(b)})`,
+      );
+    }
+    return aDt.toMillis() >= bDt.toMillis();
+  } else if (
+    [a, b].every(
+      (v) =>
+        v instanceof Duration ||
+        ["number", "string"].includes(typeof v) ||
+        v instanceof Decimal,
+    )
+  ) {
+    const aDt: Duration | null =
+      a instanceof Duration ? a : (typeCast(a, Duration) as Duration);
+    const bDt: Duration | null =
+      b instanceof Duration ? b : (typeCast(b, Duration) as Duration);
+
+    if (!aDt || !bDt) {
+      throw new NotSupportedError(
+        `Unsupported operator(>): (${typeName(a)} > ${typeName(b)})`,
+      );
+    }
+    return aDt.toMillis() >= bDt.toMillis();
   }
   return null;
 }
 
+binaryOp("<", lt, [String, DateTime], Boolean);
+binaryOp("<", lt, [String, Duration], Boolean);
 binaryOp("<", lt, [Number, Number], Boolean);
+binaryOp("<", lt, [Number, DateTime], Boolean);
 binaryOp("<", lt, [Number, Decimal], Boolean);
+binaryOp("<", lt, [Number, Duration], Boolean);
 binaryOp("<", lt, [Decimal, Number], Boolean);
+binaryOp("<", lt, [Decimal, DateTime], Boolean);
 binaryOp("<", lt, [Decimal, Decimal], Boolean);
+binaryOp("<", lt, [Decimal, Duration], Boolean);
 binaryOp("<", lt, [DateTime, DateTime], Boolean);
+binaryOp("<", lt, [DateTime, String], Boolean);
+binaryOp("<", lt, [DateTime, Number], Boolean);
+binaryOp("<", lt, [DateTime, Decimal], Boolean);
 binaryOp("<", lt, [Duration, Duration], Boolean);
+binaryOp("<", lt, [Duration, String], Boolean);
+binaryOp("<", lt, [Duration, Number], Boolean);
+binaryOp("<", lt, [Duration, Decimal], Boolean);
 export function lt(a: any, b: any) {
   if (typeof a === "number" && typeof b === "number") {
     return a < b;
@@ -415,16 +532,66 @@ export function lt(a: any, b: any) {
     return a.toMillis() < b.toMillis();
   } else if (a instanceof Duration && b instanceof Duration) {
     return a.toMillis() < b.toMillis();
+  } else if (
+    [a, b].every(
+      (v) =>
+        v instanceof DateTime ||
+        ["number", "string"].includes(typeof v) ||
+        v instanceof Decimal,
+    )
+  ) {
+    const aDt: DateTime | null =
+      a instanceof DateTime ? a : (typeCast(a, DateTime) as DateTime);
+    const bDt: DateTime | null =
+      b instanceof DateTime ? b : (typeCast(b, DateTime) as DateTime);
+
+    if (!aDt || !bDt) {
+      throw new NotSupportedError(
+        `Unsupported operator(>): (${typeName(a)} > ${typeName(b)})`,
+      );
+    }
+    return aDt.toMillis() < bDt.toMillis();
+  } else if (
+    [a, b].every(
+      (v) =>
+        v instanceof Duration ||
+        ["number", "string"].includes(typeof v) ||
+        v instanceof Decimal,
+    )
+  ) {
+    const aDt: Duration | null =
+      a instanceof Duration ? a : (typeCast(a, Duration) as Duration);
+    const bDt: Duration | null =
+      b instanceof Duration ? b : (typeCast(b, Duration) as Duration);
+
+    if (!aDt || !bDt) {
+      throw new NotSupportedError(
+        `Unsupported operator(>): (${typeName(a)} > ${typeName(b)})`,
+      );
+    }
+    return aDt.toMillis() < bDt.toMillis();
   }
   return null;
 }
 
+binaryOp("<=", lte, [String, DateTime], Boolean);
+binaryOp("<=", lte, [String, Duration], Boolean);
 binaryOp("<=", lte, [Number, Number], Boolean);
+binaryOp("<=", lte, [Number, DateTime], Boolean);
 binaryOp("<=", lte, [Number, Decimal], Boolean);
+binaryOp("<=", lte, [Number, Duration], Boolean);
 binaryOp("<=", lte, [Decimal, Number], Boolean);
+binaryOp("<=", lte, [Decimal, DateTime], Boolean);
 binaryOp("<=", lte, [Decimal, Decimal], Boolean);
+binaryOp("<=", lte, [Decimal, Duration], Boolean);
 binaryOp("<=", lte, [DateTime, DateTime], Boolean);
+binaryOp("<=", lte, [DateTime, String], Boolean);
+binaryOp("<=", lte, [DateTime, Number], Boolean);
+binaryOp("<=", lte, [DateTime, Decimal], Boolean);
 binaryOp("<=", lte, [Duration, Duration], Boolean);
+binaryOp("<=", lte, [Duration, String], Boolean);
+binaryOp("<=", lte, [Duration, Number], Boolean);
+binaryOp("<=", lte, [Duration, Decimal], Boolean);
 export function lte(a: any, b: any) {
   if (typeof a === "number" && typeof b === "number") {
     return a <= b;
@@ -438,6 +605,44 @@ export function lte(a: any, b: any) {
     return a.toMillis() <= b.toMillis();
   } else if (a instanceof Duration && b instanceof Duration) {
     return a.toMillis() <= b.toMillis();
+  } else if (
+    [a, b].every(
+      (v) =>
+        v instanceof DateTime ||
+        ["number", "string"].includes(typeof v) ||
+        v instanceof Decimal,
+    )
+  ) {
+    const aDt: DateTime | null =
+      a instanceof DateTime ? a : (typeCast(a, DateTime) as DateTime);
+    const bDt: DateTime | null =
+      b instanceof DateTime ? b : (typeCast(b, DateTime) as DateTime);
+
+    if (!aDt || !bDt) {
+      throw new NotSupportedError(
+        `Unsupported operator(>): (${typeName(a)} > ${typeName(b)})`,
+      );
+    }
+    return aDt.toMillis() <= bDt.toMillis();
+  } else if (
+    [a, b].every(
+      (v) =>
+        v instanceof Duration ||
+        ["number", "string"].includes(typeof v) ||
+        v instanceof Decimal,
+    )
+  ) {
+    const aDt: Duration | null =
+      a instanceof Duration ? a : (typeCast(a, Duration) as Duration);
+    const bDt: Duration | null =
+      b instanceof Duration ? b : (typeCast(b, Duration) as Duration);
+
+    if (!aDt || !bDt) {
+      throw new NotSupportedError(
+        `Unsupported operator(>): (${typeName(a)} > ${typeName(b)})`,
+      );
+    }
+    return aDt.toMillis() <= bDt.toMillis();
   }
   return null;
 }
@@ -701,7 +906,7 @@ function toDate(a: any): DateTime {
   if (a instanceof DateTime) {
     return a;
   } else if (typeof a === "string") {
-    return DateTime.fromFormat("yyyy-MM-dd", a);
+    return parseDateTime(a);
   } else if (a instanceof Date) {
     return DateTime.fromJSDate(a);
   } else if (typeof a === "number") {
@@ -949,7 +1154,10 @@ function empty(obj: unknown) {
 
 createFunction("parse_date", [String], DateTime, parseDate, true);
 createFunction("parse_date", [String, String], DateTime, parseDate, true);
-function parseDate(date: string, format: string = "yyyy-MM-dd") {
+function parseDate(date: string, format: string = "") {
+  if (!format) {
+    return parseDateTime(date);
+  }
   return DateTime.fromFormat(date, format);
 }
 
@@ -1006,34 +1214,7 @@ function datePart(field: string, date: DateTime): number {
   return null;
 }
 
-createFunction("interval", [String], Duration, interval, true);
-function interval(input: string): Duration {
-  const matches =
-    /(\d+)\s+(day|month|year|decade|century|centurie|millennium)s?/.exec(input);
-  if (!matches) {
-    return null;
-  }
-  const units = +matches[1];
-  const field = matches[2];
-
-  switch (field) {
-    case "day":
-      return Duration.fromObject({ day: units });
-    case "week":
-      return Duration.fromObject({ week: units });
-    case "month":
-      return Duration.fromObject({ month: units });
-    case "year":
-      return Duration.fromObject({ year: units });
-    case "decade":
-      return Duration.fromObject({ year: units * 10 });
-    case "century":
-      return Duration.fromObject({ year: units * 100 });
-    case "millennium":
-      return Duration.fromObject({ year: units * 1000 });
-  }
-  return null;
-}
+createFunction("interval", [String], Duration, parseDuration, true);
 
 createFunction(
   "date_bin",
@@ -1055,7 +1236,7 @@ function dateBin(
   origin: DateTime,
 ) {
   if (typeof stride === "string") {
-    return dateBin(interval(stride), source, origin);
+    return dateBin(parseDuration(stride), source, origin);
   }
   const elapsed = source.diff(origin).toMillis();
   const intervalMs = stride.toMillis();

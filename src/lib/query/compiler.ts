@@ -884,7 +884,7 @@ export class Compiler {
     } else if (node instanceof PlaceHolderExpression) {
       return new EvalConstant(this.parameters[node.name]);
     } else if (node instanceof ColumnExpression) {
-      const column = this.table.getColumn(node.column);
+      const column = this.table.getColumn(node.name);
       if (column) {
         return column;
       } else {

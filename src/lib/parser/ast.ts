@@ -55,6 +55,23 @@ export class ColumnExpression extends Expression {
   public toString() {
     return this.column;
   }
+
+  get name() {
+    if (this.column.startsWith('"') && this.column.endsWith('"')) {
+      return this.column
+        .substring(1, this.column.length - 1)
+        .replaceAll('""', '"');
+    } else if (this.column.startsWith("`") && this.column.endsWith("`")) {
+      return this.column
+        .substring(1, this.column.length - 1)
+        .replaceAll("``", "`");
+    } else if (this.column.startsWith("[") && this.column.endsWith("]")) {
+      return this.column
+        .substring(1, this.column.length - 1)
+        .replaceAll("]]", "]");
+    }
+    return this.column;
+  }
 }
 
 export class CaseExpression extends Expression {
@@ -199,7 +216,7 @@ export class OptionExpression extends Expression {
   constructor(
     parseInfo: ParseInfo,
     readonly name: string,
-    readonly value: LiteralExpression | ListExpression,
+    readonly value: LiteralExpression | ListExpression | ColumnExpression,
   ) {
     super(parseInfo);
   }
@@ -672,7 +689,7 @@ export class TargetExpression extends Expression {
     }
 
     if (this.expression instanceof ColumnExpression) {
-      return this.expression.column;
+      return this.expression.name;
     }
 
     if (this.expression instanceof AttributeExpression) {

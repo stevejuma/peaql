@@ -222,6 +222,84 @@ describe("Create table", () => {
   });
 });
 
+describe("Column Identifiers", () => {
+  const context = Context.create()
+    .withDefaultTable("postings")
+    .withTables(
+      Table.create(
+        "postings",
+        new AttributeColumn("a", Number),
+        new AttributeColumn("b", String),
+      ).data([{ a: 1, b: "one" }]),
+    );
+
+  test("Select quoted identifiers", () => {
+    const [columns, data] = context.execute(`
+        SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+      `);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "a", type: Number },
+      { name: "bracket", type: Number },
+      { name: "quoted", type: Number },
+      { name: "backtick", type: Number },
+    ]);
+    expect(data).toEqual([[1, 1, 1, 1]]);
+  });
+
+  test("identifier_quoting = bracket", () => {
+    const [columns, data] = context.execute(`
+        SET identifier_quoting = bracket;
+        SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+      `);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "a", type: Number },
+      { name: "bracket", type: Number },
+      { name: "quoted", type: String },
+      { name: "backtick", type: String },
+    ]);
+    expect(data).toEqual([[1, 1, "a", "a"]]);
+  });
+
+  test("identifier_quoting = quoted", () => {
+    const [columns, data] = context.execute(`
+        SET identifier_quoting = quoted;
+        SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+      `);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "a", type: Number },
+      { name: "bracket", type: String },
+      { name: "quoted", type: Number },
+      { name: "backtick", type: String },
+    ]);
+    expect(data).toEqual([[1, "a", 1, "a"]]);
+  });
+
+  test("identifier_quoting = backtick", () => {
+    const [columns, data] = context.execute(`
+        SET identifier_quoting = backtick;
+        SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+      `);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "a", type: Number },
+      { name: "bracket", type: String },
+      { name: "quoted", type: String },
+      { name: "backtick", type: Number },
+    ]);
+    expect(data).toEqual([[1, "a", "a", 1]]);
+  });
+
+  test("invalid option identifier_quoting", () => {
+    expect(() => {
+      context.execute(`
+          SET identifier_quoting = unknown;
+          SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+        `);
+    }).toThrow(
+      "Invalid value for option: identifier_quoting expected: quoted,backtick,bracket,auto got unknown",
+    );
+  });
+});
+
 describe("Simple Queries", () => {
   const context = Context.create()
     .withDefaultTable("postings")
