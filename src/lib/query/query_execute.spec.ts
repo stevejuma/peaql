@@ -249,7 +249,7 @@ describe("Column Identifiers", () => {
   test("identifier_quoting = bracket", () => {
     const [columns, data] = context.execute(`
         SET identifier_quoting = bracket;
-        SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+        SELECT a, [a] as [bracket], "a" as quoted, \`a\` as backtick from postings;
       `);
     expect(normalizeColumns(columns)).toEqual([
       { name: "a", type: Number },

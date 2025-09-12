@@ -50,7 +50,11 @@ export function readString(value: string) {
   if (value.startsWith('"') && value.endsWith('"')) {
     return value.slice(1, -1);
   } else if (value.startsWith("'") && value.endsWith("'")) {
-    return value.slice(1, -1).replace(/''/g, "'");
+    return value.slice(1, -1).replaceAll("''", "'");
+  } else if (value.startsWith("[") && value.endsWith("]")) {
+    return value.slice(1, -1).replaceAll("]]", "]");
+  } else if (value.startsWith("`") && value.endsWith("`")) {
+    return value.slice(1, -1).replaceAll("``", "`");
   }
   return value;
 }
@@ -1396,7 +1400,9 @@ export class Parser {
   protected getAlias(node?: SyntaxNodeRef | SyntaxNode): string {
     if (node?.name === "As") {
       const el =
-        node.node.getChild("Identifier") ?? node.node.getChild("String");
+        node.node.getChild("Identifier") ??
+        node.node.getChild("String") ??
+        node.node.getChild("BoxedIdentifier");
       if (el) {
         return readString(this.content(el));
       } else {

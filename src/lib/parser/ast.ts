@@ -1,5 +1,6 @@
 import { DateTime, Duration } from "luxon";
 import { isNull } from "../query/types";
+import { readString } from "./parser";
 
 export type Op =
   | ">"
@@ -57,20 +58,7 @@ export class ColumnExpression extends Expression {
   }
 
   get name() {
-    if (this.column.startsWith('"') && this.column.endsWith('"')) {
-      return this.column
-        .substring(1, this.column.length - 1)
-        .replaceAll('""', '"');
-    } else if (this.column.startsWith("`") && this.column.endsWith("`")) {
-      return this.column
-        .substring(1, this.column.length - 1)
-        .replaceAll("``", "`");
-    } else if (this.column.startsWith("[") && this.column.endsWith("]")) {
-      return this.column
-        .substring(1, this.column.length - 1)
-        .replaceAll("]]", "]");
-    }
-    return this.column;
+    return readString(this.column);
   }
 }
 

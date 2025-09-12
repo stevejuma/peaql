@@ -132,7 +132,7 @@ SubSelect {
 }
 
 As {
-    as?  Identifier
+    as?  (Identifier | BoxedIdentifier)
 }
 
 From {
