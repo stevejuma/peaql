@@ -58,13 +58,13 @@ export const TableColumns = Symbol("Columns");
 export function Column(type: DType, name?: string) {
   return function <T extends Table, Args extends any[], Return>(
     target: (this: T, context: any) => Return,
-    context: ClassMethodDecoratorContext<T, (this: T, ...args: Args) => Return>,
+    context: ClassMethodDecoratorContext<T, (this: T, ...args: Args) => Return>
   ) {
     const key = name ?? String(context.name);
-
+    
     // Store the original method
     const originalMethod = target;
-
+    
     // Add to context.addInitializer to run when the class is constructed
     context.addInitializer(function (this: T) {
       const wrappedGetter = (contextParam: unknown) => {
@@ -78,7 +78,7 @@ export function Column(type: DType, name?: string) {
           return getValueByDotNotation(contextParam, key) as Return;
         }
       };
-
+      
       // Initialize the TableColumns map if it doesn't exist
       (this as any)[TableColumns] ||= new Map<string, EvalNode>();
       (this as any)[TableColumns].set(
@@ -96,8 +96,7 @@ export function EntityTable<T extends { new (...args: any[]): any }>(Base: T) {
   return class extends Base {
     constructor(...args: any[]) {
       super(...args);
-      const columns = (Base.prototype[TableColumns] ??
-        (this as any)[TableColumns]) as Map<string, EvalNode>;
+      const columns = (Base.prototype[TableColumns] ?? (this as any)[TableColumns]) as Map<string, EvalNode>;
       if (columns) {
         const map = this.columns as Map<string, EvalNode>;
         for (const [key, value] of columns.entries()) {
