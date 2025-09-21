@@ -314,6 +314,14 @@ describe("Simple Queries", () => {
       ]),
     );
 
+  test("SELECT a order by a", () => {
+    const [columns, data] = context.execute(`SELECT a as "a.b" order by "a.b" desc`);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "a.b", type: Number },
+    ]);
+    expect(data).toEqual([[2.03], [1]]);
+  });
+
   test("Execute multiple", () => {
     const [columns, data] = context.execute(`
       CREATE TABLE t1(a STRING, b INTEGER);

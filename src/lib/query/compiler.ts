@@ -1312,7 +1312,7 @@ export class Compiler {
         }
       } else {
         if (column instanceof ColumnExpression) {
-          index = targetsNameMap[column.column];
+          index = targetsNameMap[column.name];
         }
         if (isNull(index)) {
           const expr = this.compileExpression(column);
@@ -1367,7 +1367,7 @@ export class Compiler {
         }
       } else {
         if (column instanceof ColumnExpression) {
-          index = targetsNameMap[column.column];
+          index = targetsNameMap[column.name];
         }
         if (isNull(index)) {
           const expr = this.compileExpression(column);
@@ -1422,7 +1422,7 @@ export class Compiler {
         }
       } else {
         if (column instanceof ColumnExpression) {
-          index = targetsNameMap[column.column];
+          index = targetsNameMap[column.name];
           if (isNull(index)) {
             throw new CompilationError(
               `PIVOT BY column ${column} is not in the targets list`,
@@ -1491,7 +1491,7 @@ export class Compiler {
           }
         } else {
           if (column instanceof ColumnExpression) {
-            index = targetsNameMap[column.column];
+            index = targetsNameMap[column.name];
           }
           if (isNull(index)) {
             const expr = this.compileExpression(column);
@@ -1666,13 +1666,13 @@ export class Compiler {
           expr.args[0],
         );
       }
-      if (!this.table.getColumn(column.column)) {
+      if (!this.table.getColumn(column.name)) {
         throw new CompilationError(
           `column "${column.column}" of relation "${this.table.name}" does not exist`,
           column,
         );
       }
-      columns[column.column] = this.compileExpression(expr.args[1]);
+      columns[column.name] = this.compileExpression(expr.args[1]);
     }
 
     return new EvalUpdateTable(this.context, columns, returning, node, where);

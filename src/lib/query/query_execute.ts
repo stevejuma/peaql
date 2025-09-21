@@ -284,7 +284,6 @@ export function executeSelect(
       });
     });
   }
-
   rows = multiColumnSort(rows, orderSpec);
   rows = rows.map((row) => {
     return columns.map((it) => row[it.index]);
