@@ -1233,7 +1233,7 @@ export class Parser {
         new SubscriptExpression(
           parseInfo,
           this.stack.pop(),
-          readString(this.content(node.node.getChild("String"))),
+          readString(this.content(node.node.getChild("QuotedString"))),
         ),
       );
     } else if (node.name === "Uplus") {

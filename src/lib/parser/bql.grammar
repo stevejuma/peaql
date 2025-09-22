@@ -375,7 +375,7 @@ primaryExpr {
 }
 
 Attribute {
-    primaryExpr "." (Identifier | Function)
+    primaryExpr "." (Identifier | BoxedIdentifier | Function)
 }
 
 Subscript {
@@ -701,16 +701,20 @@ Identifier {
         "'" (!['\\] | "\\" _)* "'" |
         "'" (!['] | "''")* "'" 
     }
+    QuotedString {
+        "'" (!['\\] | "\\" _)* "'" |
+        '"' (!["\\] | "\\" _)*  '"' 
+    }
     Integer { @digit+ }
     Decimal { @digit+ "." @digit* | @digit* "." @digit+ }
     QuotedIdentifier {
         '"' (!["\\] | "\\" _)*  '"' | 
         '"' (!["] | '""')* '"' |
-        '"' (!["] | '""')* '"' | 
+        '"' (!["] | '""')* '"' |
         '`' (![`] | '``')* '`'
     }
     BoxedIdentifier {
-       '['  (![\]] | "]]")*   ']' 
+       '['  (![\]'"] | "]]")*   ']'
     }
     identifier { $[a-zA-Z_]$[a-zA-Z0-9_]* | QuotedIdentifier }
     Op { '<' | '<=' | '<>' | '>' | '>=' | '=' | '!=' | ('~' | '!~'  |  '?~') ASTERISK?  }
