@@ -379,7 +379,7 @@ Attribute {
 }
 
 Subscript {
-    primaryExpr "[" String "]"
+    primaryExpr "[" QuotedString "]"
 }
 
 atom {
