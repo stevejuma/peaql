@@ -322,6 +322,13 @@ describe("Simple Queries", () => {
     expect(data).toEqual([[2.03], [1]]);
   });
 
+  test("SELECT now()", () => {
+    const [columns] = context.execute(`SELECT (now())`);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "now()", type: DateTime },
+    ]);
+  });
+
   test("Execute multiple", () => {
     const [columns, data] = context.execute(`
       CREATE TABLE t1(a STRING, b INTEGER);

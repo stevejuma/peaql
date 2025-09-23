@@ -667,15 +667,28 @@ export class Parser {
       );
       if (fns.length) {
         let expr = this.stack.pop();
-        for (const fn of fns) {
-          expr = new AttributeExpression(
-            parseInfo,
-            expr,
-            fn as CastExpression | FunctionExpression,
-          );
+        if (expr instanceof Query) {
+          this.add(expr);
+          const [ex, ...rest] = fns;
+          expr = ex;
+          for (const fn of rest) {
+            expr = new AttributeExpression(
+              parseInfo,
+              expr,
+              fn as CastExpression | FunctionExpression,
+            );
+          }
+        } else {
+          for (const fn of fns) {
+            expr = new AttributeExpression(
+              parseInfo,
+              expr,
+              fn as CastExpression | FunctionExpression,
+            );
+          }
         }
         this.add(expr);
-      }
+      } 
       const castNode = node.node.getChild("TypeCast")?.getChild("Cast");
       if (castNode) {
         this.stack[this.stack.length - 1] = this.cast(
