@@ -223,7 +223,7 @@ export class Compiler {
     const targets = this.compileTargets(node.select.targets);
 
     let where = this.compileExpression(node.where);
-    if (where && where.type !== Boolean) {
+    if (where && where.type !== Boolean && where.type !== NULL) {
       throw new CompilationError(
         `argument of WHERE must be type boolean, not type ${typeName(where.type)}`,
         node.where,
@@ -960,7 +960,7 @@ export class Compiler {
         if (node.op === "NOT" && args.length == 1) {
           if (args[0].type !== Boolean) {
             if (args.some((it) => it.type === NULL)) {
-              return new EvalConstant(false, Boolean);
+              return new EvalConstant(null, NULL);
             }
             throw new CompilationError(
               `argument of NOT must be type boolean, not type ${typeName(args[0].type)}\n${node.args[0]}`,
@@ -1024,7 +1024,7 @@ export class Compiler {
         if (args.length == 2) {
           const [left, right] = args;
           if (left.type == NULL || right.type == NULL) {
-            return new EvalConstant(false);
+            return new EvalConstant(null);
           }
         }
 
@@ -1038,7 +1038,7 @@ export class Compiler {
         }
 
         if (args.some((it) => it.type === NULL)) {
-          return new EvalConstant(false, Boolean);
+          return new EvalConstant(null, Boolean);
         }
         throw new NotSupportedError(
           `Unsupported operator(${node.op}): (${args.map((it) => typeName(it?.type)).join(` ${node.op} `)})`,

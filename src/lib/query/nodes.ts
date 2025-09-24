@@ -601,7 +601,7 @@ export class EvalAnd extends EvalNode {
   constructor(readonly args: EvalNode[]) {
     super(Boolean);
     args.forEach((expr) => {
-      if (expr.type !== Boolean) {
+      if (expr.type !== Boolean && expr.type !== NULL) {
         throw new DataError(
           `argument of AND must be type boolean, not type ${typeName(expr.type)}`,
         );
@@ -642,7 +642,7 @@ export class EvalOr extends EvalNode {
   constructor(readonly args: EvalNode[]) {
     super(Boolean);
     args.forEach((expr) => {
-      if (expr.type !== Boolean) {
+      if (expr.type !== Boolean && expr.type !== NULL) {
         throw new DataError(
           `argument of OR must be type boolean, not type ${typeName(expr.type)}`,
         );
@@ -1443,7 +1443,7 @@ export class EvalCreateTable extends EvalNode {
       }
       if (column.check) {
         const expr = context.compiler.compileExpression(column.check);
-        if (expr.type !== Boolean) {
+        if (expr.type !== Boolean && expr.type !== NULL) {
           throw new CompilationError(
             `argument of CHECK must be type boolean, not type ${typeName(expr.type)}`,
             node,
@@ -1460,7 +1460,7 @@ export class EvalCreateTable extends EvalNode {
     for (const constraint of node.constraints) {
       if (constraint instanceof CheckConstraint) {
         const expr = context.compiler.compileExpression(constraint.expression);
-        if (expr.type !== Boolean) {
+        if (expr.type !== Boolean && expr.type !== NULL) {
           throw new CompilationError(
             `argument of CHECK must be type boolean, not type ${typeName(expr.type)}`,
             node,

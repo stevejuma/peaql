@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { Context } from "./context";
 import { AttributeColumn } from "./nodes";
 import { Table } from "./models";
-import { INTEGER, normalizeColumns } from "./types";
+import { INTEGER, normalizeColumns, NULL } from "./types";
 import { DateTime } from "luxon";
 
 describe("Update table", () => {
@@ -326,6 +326,17 @@ describe("Simple Queries", () => {
     const [columns] = context.execute(`SELECT (now())`);
     expect(normalizeColumns(columns)).toEqual([
       { name: "now()", type: DateTime },
+    ]);
+  });
+
+  test("SELECT 1 + null", () => {
+    const [columns, data] = context.execute(`SELECT 1 + null`);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "1 + null", type: NULL },
+    ]);
+    expect(data).toEqual([
+      [null],
+      [null]
     ]);
   });
 
