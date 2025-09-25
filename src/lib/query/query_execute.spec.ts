@@ -235,7 +235,7 @@ describe("Column Identifiers", () => {
 
   test("Select quoted identifiers", () => {
     const [columns, data] = context.execute(`
-        SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+        SELECT a, {a} as bracket, "a" as quoted, \`a\` as backtick from postings;
       `);
     expect(normalizeColumns(columns)).toEqual([
       { name: "a", type: Number },
@@ -249,7 +249,7 @@ describe("Column Identifiers", () => {
   test("identifier_quoting = bracket", () => {
     const [columns, data] = context.execute(`
         SET identifier_quoting = bracket;
-        SELECT a, [a] as [bracket], "a" as quoted, \`a\` as backtick from postings;
+        SELECT a, {a} as {bracket}, "a" as quoted, \`a\` as backtick from postings;
       `);
     expect(normalizeColumns(columns)).toEqual([
       { name: "a", type: Number },
@@ -263,7 +263,7 @@ describe("Column Identifiers", () => {
   test("identifier_quoting = quoted", () => {
     const [columns, data] = context.execute(`
         SET identifier_quoting = quoted;
-        SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+        SELECT a, {a} as bracket, "a" as quoted, \`a\` as backtick from postings;
       `);
     expect(normalizeColumns(columns)).toEqual([
       { name: "a", type: Number },
@@ -277,7 +277,7 @@ describe("Column Identifiers", () => {
   test("identifier_quoting = backtick", () => {
     const [columns, data] = context.execute(`
         SET identifier_quoting = backtick;
-        SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+        SELECT a, {a} as bracket, "a" as quoted, \`a\` as backtick from postings;
       `);
     expect(normalizeColumns(columns)).toEqual([
       { name: "a", type: Number },
@@ -292,7 +292,7 @@ describe("Column Identifiers", () => {
     expect(() => {
       context.execute(`
           SET identifier_quoting = unknown;
-          SELECT a, [a] as bracket, "a" as quoted, \`a\` as backtick from postings;
+          SELECT a, {a} as bracket, "a" as quoted, \`a\` as backtick from postings;
         `);
     }).toThrow(
       "Invalid value for option: identifier_quoting expected: quoted,backtick,bracket,auto got unknown",
@@ -337,6 +337,17 @@ describe("Simple Queries", () => {
     expect(data).toEqual([
       [null],
       [null]
+    ]);
+  });
+
+
+  test("SELECT [1,2,3].map(1 + index)", () => {
+    const [columns, data] = context.execute(`SELECT ([1,2,3]).map(value + index) LIMIT 1`);
+    expect(normalizeColumns(columns)).toEqual([
+      { name: "[1,2,3].map(value + index)", type: [Object] },
+    ]);
+    expect(data).toEqual([
+      [[1,3,5]]
     ]);
   });
 

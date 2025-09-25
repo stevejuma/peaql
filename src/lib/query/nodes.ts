@@ -73,6 +73,12 @@ export function findFunction(fn: string, operands: any[]) {
     .sort((a, b) => a.sortKey - b.sortKey);
   return matches[0];
 }
+
+export function findColumnFunction(fn: string) {
+  return (FUNCTIONS[fn.toLowerCase()] || [])
+    .filter((it) => Object.keys(it.columns).length)
+    .sort((a, b) => a.sortKey - b.sortKey);
+}
 export type AggregatorState = "init" | "update" | "finalize";
 
 export function registerOperator(name: Op, ...op: Operation[]) {
@@ -130,6 +136,7 @@ export function createFunction(
   outType: DType,
   operator: (...a: any[]) => any,
   pure: boolean = true,
+  columns: Record<string, DType> = {}
 ) {
   FUNCTIONS[name.toLowerCase()] ||= [];
   FUNCTIONS[name.toLowerCase()].push(
@@ -144,8 +151,10 @@ export function createFunction(
           outType,
           pure,
           operator,
+          columns
         );
       },
+      columns
     ),
   );
 }
@@ -356,6 +365,7 @@ export class EvalFunction extends EvalNode {
     type: DType,
     readonly pure: boolean = false,
     readonly operator?: (...args: any[]) => any,
+    readonly columns: Record<string, DType> = {}
   ) {
     super(type, context);
   }
@@ -380,6 +390,9 @@ export class EvalFunction extends EvalNode {
   resolve(context?: any) {
     if (!this.operator) {
       throw new Error(`No operator defined for function`);
+    }
+    if (Object.keys(this.columns).length) {
+      return this.operator(context, ...this.operands)
     }
     const args = this.operands.map((it) => it.resolve(context));
     if (args.some(isNull)) {

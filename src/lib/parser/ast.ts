@@ -300,7 +300,7 @@ export class CollectionExpression extends Expression {
 export class ListExpression extends Expression {
   constructor(
     parseInfo: ParseInfo,
-    readonly values: Array<LiteralExpression>,
+    readonly values: Array<LiteralExpression | ListExpression>,
   ) {
     super(parseInfo);
   }
@@ -310,7 +310,7 @@ export class ListExpression extends Expression {
   }
 
   public toString() {
-    return `(${this.values.join(", ")})`;
+    return `[${this.values.join(",")}]`;
   }
 }
 

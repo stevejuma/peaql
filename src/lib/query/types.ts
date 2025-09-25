@@ -467,6 +467,7 @@ export class Operation {
     readonly output: DType,
     readonly operator: (...args: any[]) => any,
     readonly creator: (...args: any[]) => EvalNode,
+    readonly columns: Record<string, DType> = {}
   ) {}
 
   create(...args: any[]): EvalNode {

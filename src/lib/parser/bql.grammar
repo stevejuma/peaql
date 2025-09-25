@@ -343,7 +343,7 @@ CalcExpr {
 }
 
 Column {
-   (Identifier | BoxedIdentifier) Cast?
+   (Identifier | BoxedIdentifier | Identifier { index }) Cast?
 }
 
 CastExpr {
@@ -485,6 +485,10 @@ List {
    array "(" Literal ("," Literal)* ")" 
 }
 
+Array {
+   array? "[" Literal ("," Literal)* "]" 
+}
+
 literal {
    Date
    | Decimal 
@@ -496,6 +500,7 @@ literal {
    | Timestamp
    | TimestampWithTimeZone
    | TimestamptzAtTimeZone
+   | Array
 }
 
 Literal {
@@ -714,7 +719,7 @@ Identifier {
         '`' (![`] | '``')* '`'
     }
     BoxedIdentifier {
-       '['  (![\]'"] | "]]")*   ']'
+       '{'  (![\}] | "}}")*   '}'
     }
     identifier { $[a-zA-Z_]$[a-zA-Z0-9_]* | QuotedIdentifier }
     Op { '<' | '<=' | '<>' | '>' | '>=' | '=' | '!=' | ('~' | '!~'  |  '?~') ASTERISK?  }

@@ -51,8 +51,8 @@ export function readString(value: string) {
     return value.slice(1, -1);
   } else if (value.startsWith("'") && value.endsWith("'")) {
     return value.slice(1, -1).replaceAll("''", "'");
-  } else if (value.startsWith("[") && value.endsWith("]")) {
-    return value.slice(1, -1).replaceAll("]]", "]");
+  } else if (value.startsWith("{") && value.endsWith("}")) {
+    return value.slice(1, -1).replaceAll("}}", "}");
   } else if (value.startsWith("`") && value.endsWith("`")) {
     return value.slice(1, -1).replaceAll("``", "`");
   }
@@ -464,8 +464,8 @@ export class Parser {
       const quote = columnName.charAt(0);
       const column = new ColumnExpression(parseInfo, columnName);
       if (
-        ['"', "`", "["].includes(quote) &&
-        ['"', "`", "]"].includes(columnName.charAt(columnName.length - 1)) &&
+        ['"', "`", "{"].includes(quote) &&
+        ['"', "`", "}"].includes(columnName.charAt(columnName.length - 1)) &&
         !node.node.getChild("Cast")
       ) {
         const option = this.options.find(
@@ -477,7 +477,7 @@ export class Parser {
           const map: Record<string, string> = {
             '"': "quoted",
             "`": "backtick",
-            "[": "bracket",
+            "{": "bracket",
           };
           if (value) {
             if (!expected.includes(value)) {
@@ -513,13 +513,24 @@ export class Parser {
         ),
       );
     } else if (node.name === "Literal") {
+      const child = node.node.firstChild;
+      if (["List", "Array"].includes(child.name)) {
+        this.add(
+            new ListExpression(
+              parseInfo,
+              child.getChildren("Literal").map((it) => this.literal(it)),
+            ),
+        );
+        return false;
+      }
       this.add(
         this.cast(
           node.node.getChild("Cast"),
           this.literal(node.node.firstChild),
         ),
       );
-    } else if (node.name === "List") {
+      return false;
+    } else if (node.name === "List" || node.name === "Array") {
       this.add(
         new ListExpression(
           parseInfo,

@@ -67,10 +67,12 @@ import {
   findOperator,
   EvalStatements,
   EvalUpdateTable,
+  findColumnFunction,
+  AttributeColumn,
 } from "./nodes";
 import { SubQueryTable, Table } from "./models";
 import { Context } from "./context";
-import { isSameType, NULL, structureFor, typeFor } from "./types";
+import { isSameType, NULL, Operation, structureFor, typeFor } from "./types";
 import { ASTERISK, DType, EvalNode, isNull, typeName } from "./types";
 import "./query_env";
 
@@ -96,6 +98,7 @@ export class Compiler {
   queries: Array<Query> = [];
   modes: Array<string> = [];
   expressions: Array<Expression> = [];
+  columnFunctions: Array<Array<Operation>> = [];
   readonly options: CompilerOptions;
 
   constructor(
@@ -888,6 +891,14 @@ export class Compiler {
       if (column) {
         return column;
       } else {
+        const columnFns = this.columnFunctions[this.columnFunctions.length -1];
+        if (columnFns && columnFns.length) {
+          for(const op of columnFns) {
+            if (op.columns[node.name.toLowerCase()]) {
+              return new AttributeColumn(node.name, op.columns[node.name.toLowerCase()]);
+            }
+          }
+        }
         throw new CompilationError(
           `column "${node.column}" not found in table "${this.table.name}"`,
           node,
@@ -1156,7 +1167,9 @@ export class Compiler {
   }
 
   compileFunction(node: FunctionExpression) {
+    this.columnFunctions.push(findColumnFunction(node.name));
     const operands = node.args.map((it) => this.compileExpression(it));
+    this.columnFunctions.pop();
     if (node.name === "coalesce") {
       if (operands.some((it) => it.type !== operands[0].type)) {
         throw new CompilationError(

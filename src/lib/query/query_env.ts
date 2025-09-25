@@ -668,6 +668,16 @@ export function getItem(obj: any, key: string, fallback: any = null) {
   );
 }
 
+createFunction("map", [[Object], Object], [Object], mapItems, true, {index: Number, value: Object});
+export function mapItems(obj: any, items: EvalNode, expr: EvalNode) {
+  let values: Array<any> = items.resolve(obj);
+  if (isNull(values)) return null;
+  if (!Array.isArray(values)) {
+    values = [values];
+  }
+  return values.map((value, index) => expr.resolve({...(obj || {}), value, index}))
+}
+
 // Query env
 
 // Type Casting
