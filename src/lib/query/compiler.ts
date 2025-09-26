@@ -1350,7 +1350,7 @@ export class Compiler {
   compileOrderBy(
     targets: EvalTarget[],
     node?: OrderByExpression,
-  ): [EvalTarget[], [number, "ASC" | "DESC"][]] {
+  ): [EvalTarget[], [number, "ASC" | "DESC", "FIRST" | "LAST"][]] {
     if (!node) {
       return [[], []];
     }
@@ -1364,7 +1364,7 @@ export class Compiler {
       return acc;
     }, {});
 
-    const orderSpec: [number, "ASC" | "DESC"][] = [];
+    const orderSpec: [number, "ASC" | "DESC", "FIRST" | "LAST"][] = [];
     const size = Object.getOwnPropertySymbols(targetsNameMap).length;
     node.columns.forEach((spec) => {
       let index: number | null;
@@ -1398,7 +1398,7 @@ export class Compiler {
           `Internal error, could not index order-by reference: ${column}`,
         );
       }
-      orderSpec.push([index, spec.direction]);
+      orderSpec.push([index, spec.direction, spec.nullHandling]);
     });
     return [newTargets, orderSpec];
   }

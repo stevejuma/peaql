@@ -863,6 +863,7 @@ export class OrderExpression extends Expression {
     parseInfo: ParseInfo,
     readonly column: Expression,
     readonly direction: "ASC" | "DESC" = "ASC",
+    readonly nullHandling: "FIRST" | "LAST" = "FIRST"
   ) {
     super(parseInfo);
   }

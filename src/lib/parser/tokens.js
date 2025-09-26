@@ -81,6 +81,7 @@ import {
   end,
   array,
   cast,
+  last,
   exists,
   _if,
   constraint,
@@ -102,6 +103,8 @@ import {
   index,
   alter,
   add,
+  nulls,
+  first
 } from "./bql.grammar.terms";
 
 const keywordMap = {
@@ -149,6 +152,9 @@ const keywordMap = {
   in: _in,
   is,
   null: _null,
+  nulls,
+  first,
+  last,
   between,
   filter,
   partition,

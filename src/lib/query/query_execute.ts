@@ -284,6 +284,7 @@ export function executeSelect(
       });
     });
   }
+
   rows = multiColumnSort(rows, orderSpec);
   rows = rows.map((row) => {
     return columns.map((it) => row[it.index]);
@@ -309,15 +310,16 @@ export function executeSelect(
 
 function multiColumnSort(
   data: unknown[][],
-  orderSpec: [number, "ASC" | "DESC"][],
-  nullHandling: "first" | "last" | "default" = "default",
+  orderSpec: [number, "ASC" | "DESC", "FIRST" | "LAST"][],
 ): unknown[][] {
+
   if (!orderSpec.length) {
     return data.slice();
   }
+
   return data
     .slice()
-    .sort((a, b) => sortColumns(orderSpec, a, b, nullHandling));
+    .sort((a, b) => sortColumns(orderSpec, a, b));
 }
 
 function orderValue(value: any): number {
@@ -342,26 +344,25 @@ function orderValue(value: any): number {
 }
 
 function sortColumns(
-  orderSpec: [number, "ASC" | "DESC"][],
+  orderSpec: [number, "ASC" | "DESC", "FIRST" | "LAST"][],
   a: unknown[],
   b: unknown[],
-  nullHandling: "first" | "last" | "default" = "default",
 ) {
   for (let i = 0; i < orderSpec.length; i++) {
     const colIndex = orderSpec[i][0];
     const direction = orderSpec[i][1];
+    const nullHandling = orderSpec[i][2];
 
     const aValue = a[colIndex];
     const bValue = b[colIndex];
 
-    if (nullHandling !== "default") {
-      if (isNull(aValue) && isNull(bValue)) {
-        continue;
-      } else if (isNull(aValue)) {
-        return nullHandling === "first" ? -1 : 1;
-      } else if (isNull(bValue)) {
-        return nullHandling === "first" ? 1 : -1;
-      }
+
+    if (isNull(aValue) && isNull(bValue)) {
+      continue;
+    } else if (isNull(aValue)) {
+      return nullHandling === "FIRST" ? -1 : 1;
+    } else if (isNull(bValue)) {
+      return nullHandling === "FIRST" ? 1 : -1;
     }
 
     if (aValue < bValue) {

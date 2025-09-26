@@ -1088,14 +1088,16 @@ export class Parser {
     } else if (node.name === "Order") {
       if (this.stack.length) {
         const expr = this.stack.pop();
+        const direction = this.content(node.node.getChild("Direction")).toUpperCase()=== "DESC" ? "DESC" : "ASC"; 
+        const nullHandling = this.content(node.node.getChild("Nulls")).toUpperCase();
         this.stack.push(
           new OrderExpression(
             expr.parseInfo,
             expr,
-            this.content(node.node.getChild("Direction")).toUpperCase() ===
-            "DESC"
-              ? "DESC"
-              : "ASC",
+            direction,
+            nullHandling === "" 
+              ? direction === "ASC" ? "LAST" : "FIRST"
+              : nullHandling.includes("FIRST") ? "FIRST" : "LAST"
           ),
         );
       }

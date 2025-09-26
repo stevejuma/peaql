@@ -114,6 +114,10 @@ Order {
           asc | desc
       )
     }?
+    Nulls {
+        nulls (first | last)
+    }?
+
 }
 
 Select {
@@ -390,7 +394,7 @@ atom {
 }
 
 FunctionName {
-    Identifier | if
+    Identifier | if | first | last
 }
 
 Function {
@@ -659,7 +663,7 @@ keyword {
     case | when | then | else | end | union  | except | intersect |
     primary | key | array | cast | if | constraint  | foreign | references | unique | check |
     update | returning | delete | drop |  without | generated | always | identity | default | 
-    comment | column | index | add | alter
+    comment | column | index | add | alter | nulls | first | last
 
 }
 
@@ -686,7 +690,7 @@ keyword {
     case, when, then, else, end , union, except, intersect,
     primary, key, array, cast, if, constraint, foreign, references, unique, check,
     update, returning, delete, drop, without , generated , always , identity , default , comment,
-    column, index, add, alter
+    column, index, add, alter, nulls, first, last
 }
 
 Identifier {

@@ -409,7 +409,7 @@ export class EvalFunction extends EvalNode {
 export type EvalOver = {
   expression: OverExpression;
   partitionBy?: number[];
-  orderBy?: [number, "ASC" | "DESC"][];
+  orderBy?: [number, "ASC" | "DESC", "FIRST" | "LAST"][];
   frame: {
     type: string;
     preceding: number;
@@ -1187,7 +1187,7 @@ export class EvalQuery extends EvalNode {
     readonly targets: EvalTarget[],
     readonly groupIndexes: number[],
     readonly havingIndex: number,
-    readonly orderSpec: [number, "ASC" | "DESC"][],
+    readonly orderSpec: [number, "ASC" | "DESC", "FIRST" | "LAST"][],
     readonly where?: EvalNode,
     readonly limit?: number,
     readonly distinct?: boolean,
