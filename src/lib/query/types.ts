@@ -4,6 +4,8 @@
 import { DateTime, Duration } from "luxon";
 import { Decimal, isValidNumber, parseNumber } from "../decimal";
 import { Expression, tryParseDuration } from "../parser";
+export type Constant = number | string | boolean | null | DateTime | Duration;
+export type ConstantValue = Constant | Array<Constant|Array<Constant>>;
 
 export const NULL = class {
   toString() {

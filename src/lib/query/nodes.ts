@@ -16,6 +16,7 @@ import {
   typeFor,
   typeCast,
   isSameType,
+  ConstantValue,
 } from "./types";
 import { executeSelect } from "./query_execute";
 import {
@@ -40,8 +41,6 @@ import {
 import { Table } from "./models";
 import { getColumnsAndAggregates } from "./compiler";
 import { Context } from "./context";
-
-export type Constant = number | string | boolean | null | DateTime | Duration;
 
 export class Allocator {
   private size: number = 0;
@@ -197,13 +196,13 @@ export function binaryOp(
 
 export class EvalConstant extends EvalNode {
   constructor(
-    readonly value: Constant | Array<Constant>,
+    readonly value: ConstantValue,
     type?: DType,
   ) {
     super(type ?? typeOf(value));
   }
 
-  resolve(_: any): Constant | Array<Constant> {
+  resolve(_: any): ConstantValue {
     return this.value;
   }
 

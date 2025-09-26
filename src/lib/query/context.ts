@@ -9,21 +9,19 @@ import {
 } from "../parser";
 import { Compiler, CompilerOptions } from "./compiler";
 import { Table } from "./models";
-import { DateTime, Duration } from "luxon";
 import { ParseError, StatementError } from "../errors";
-import { EvalNode } from "./types";
-type Constant = number | string | boolean | null | DateTime | Duration;
+import { ConstantValue, EvalNode } from "./types";
 
 export interface PreparedStatment {
   query: string;
   expr: Expression;
   errors: ParseError[];
-  settings: Record<string, Constant | Array<Constant>>;
+  settings: Record<string, ConstantValue>;
 }
 
 export class Context {
   readonly tables = new Map<string, Table>();
-  readonly settings: Record<string, Constant | Array<Constant>> = {};
+  readonly settings: Record<string, ConstantValue> = {};
   readonly compilerOptions: Partial<CompilerOptions> = {};
   compiler!: Compiler;
 
@@ -57,7 +55,7 @@ export class Context {
   copy(
     props: Partial<{
       errors: Error[];
-      settings: Record<string, Constant | Array<Constant>>;
+      settings: Record<string, ConstantValue>;
     }> = {},
   ) {
     const context = new Context(props.errors ?? [...this.errors]).withTables(
@@ -77,13 +75,13 @@ export class Context {
   prepare(query: string): PreparedStatment {
     const [expr, errors, options] = parseQuery(query);
     const settings = options.reduce(
-      (acc: Record<string, Constant | Array<Constant>>, option) => {
+      (acc: Record<string, ConstantValue>, option) => {
         if (option.value instanceof LiteralExpression) {
           acc[option.name] = option.value.value;
         } else if (option.value instanceof ColumnExpression) {
           acc[option.name] = option.value.name;
         } else if (option.value instanceof ListExpression) {
-          acc[option.name] = option.value.values.map((it) => it.value);
+          acc[option.name] = option.value.value;
         }
         return acc;
       },
@@ -107,7 +105,7 @@ export class Context {
 
   compile(
     statement: string | PreparedStatment | Expression,
-    parameters?: Record<string, Constant | Array<Constant>>,
+    parameters?: Record<string, ConstantValue>,
     options?: Partial<CompilerOptions>,
   ): EvalNode {
     if (typeof statement === "string") {
@@ -139,7 +137,7 @@ export class Context {
 
   execute(
     query: string | PreparedStatment,
-    parameters?: Record<string, Constant | Array<Constant>>,
+    parameters?: Record<string, ConstantValue>,
     options?: Partial<CompilerOptions>,
   ) {
     return this.compile(

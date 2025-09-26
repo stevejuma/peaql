@@ -40,7 +40,6 @@ import {
   ProgrammingError,
 } from "../errors";
 import {
-  Constant,
   EvalAggregator,
   EvalAll,
   EvalAnd,
@@ -72,7 +71,7 @@ import {
 } from "./nodes";
 import { SubQueryTable, Table } from "./models";
 import { Context } from "./context";
-import { isSameType, NULL, Operation, structureFor, typeFor } from "./types";
+import { ConstantValue, isSameType, NULL, Operation, structureFor, typeFor } from "./types";
 import { ASTERISK, DType, EvalNode, isNull, typeName } from "./types";
 import "./query_env";
 
@@ -93,7 +92,7 @@ const COMPILER_OPTIONS: CompilerOptions = Object.freeze({
 });
 
 export class Compiler {
-  parameters: Record<string, Constant | Array<Constant>> = {};
+  parameters: Record<string, ConstantValue> = {};
   stack: Array<Table> = [];
   queries: Array<Query> = [];
   modes: Array<string> = [];
@@ -136,8 +135,8 @@ export class Compiler {
 
   compile(
     query: Expression,
-    parameters?: Record<string, Constant | Array<Constant>> | Array<Constant>,
-    options?: Record<string, Constant | Array<Constant>>,
+    parameters?: Record<string, ConstantValue>,
+    options?: Record<string, ConstantValue>,
   ) {
     this.stack = [];
     this.queries = [];
@@ -204,7 +203,7 @@ export class Compiler {
 
   compileQuery(
     node: Query,
-    options?: Record<string, Constant | Array<Constant>>,
+    options?: Record<string, ConstantValue>,
   ): EvalQuery {
     if (!this.table) {
       throw new CompilationError(
@@ -748,7 +747,7 @@ export class Compiler {
 
   compileFrom(
     node?: FromClause,
-    _options?: Record<string, Constant | Array<Constant>>,
+    _options?: Record<string, ConstantValue>,
   ) {
     if (!node) {
       return null;
@@ -848,7 +847,7 @@ export class Compiler {
 
   compileExpression(
     node?: Expression,
-    options?: Record<string, Constant | Array<Constant>>,
+    options?: Record<string, ConstantValue>,
   ): EvalNode | null {
     if (!node) {
       return null;
@@ -869,7 +868,7 @@ export class Compiler {
 
   _compileExpression(
     node?: Expression,
-    options?: Record<string, Constant | Array<Constant>>,
+    options?: Record<string, ConstantValue>,
   ): EvalNode | null {
     if (!node) {
       return null;
@@ -883,7 +882,7 @@ export class Compiler {
     } else if (node instanceof LiteralExpression) {
       return new EvalConstant(node.value);
     } else if (node instanceof ListExpression) {
-      return new EvalConstant(node.values.map((it) => it.value));
+      return new EvalConstant(node.value);
     } else if (node instanceof PlaceHolderExpression) {
       return new EvalConstant(this.parameters[node.name]);
     } else if (node instanceof ColumnExpression) {

@@ -1,6 +1,6 @@
-import { DateTime, Duration } from "luxon";
-import { isNull } from "../query/types";
+import { ConstantValue, isNull } from "../query/types";
 import { readString } from "./parser";
+import { Constant } from "../query";
 
 export type Op =
   | ">"
@@ -252,7 +252,7 @@ export class TableExpression extends Expression {
 export class LiteralExpression extends Expression {
   constructor(
     parseInfo: ParseInfo,
-    readonly value: number | string | boolean | null | DateTime | Duration,
+    readonly value: Constant,
   ) {
     super(parseInfo);
   }
@@ -307,6 +307,10 @@ export class ListExpression extends Expression {
 
   children(): Expression[] {
     return this.values;
+  }
+
+  get value(): ConstantValue {
+    return this.values.map(it => it.value) as ConstantValue; 
   }
 
   public toString() {
